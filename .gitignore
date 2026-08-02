@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.bak
+fix*.py
+rewrite*.py
+_*.py
+check*.py
+.venv/
+node_modules/
+.DS_Store

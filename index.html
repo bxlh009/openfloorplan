@@ -1,0 +1,98 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>户型设计师</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">户型设计师</div>
+  <nav class="modes">
+    <button class="mode active" data-mode="2d">2D 平面</button>
+    <button class="mode" data-mode="3d">3D 预览</button>
+    <button class="mode" data-mode="split">分屏</button>
+  </nav>
+  <div class="actions">
+    <button id="btn-new">新建</button>
+    <button id="btn-save">保存</button>
+    <button id="btn-load">载入</button>
+    <button id="btn-export">导出 SVG</button>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="sidebar">
+    <section class="panel">
+      <h3>绘图</h3>
+      <div class="tool-grid">
+        <button class="tool" data-tool="select" title="选择 (V)"><span class="ico">↖</span><span>选择</span></button>
+        <button class="tool" data-tool="wall" title="画墙 (W)"><span class="ico">▬</span><span>墙体</span></button>
+        <button class="tool" data-tool="door" title="门 (D)"><span class="ico">🚪</span><span>门</span></button>
+        <button class="tool" data-tool="window" title="窗 (F)"><span class="ico">▭</span><span>窗</span></button>
+        <button class="tool" data-tool="room" title="房间 (R)"><span class="ico">▣</span><span>房间</span></button>
+        <button class="tool" data-tool="dimension" title="标注 (M)"><span class="ico">↔</span><span>标注</span></button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>家具</h3>
+      <div class="tool-grid">
+        <button class="tool" data-furniture="sofa" title="沙发">🛋 沙发</button>
+        <button class="tool" data-furniture="bed" title="床">🛏 床</button>
+        <button class="tool" data-furniture="table" title="餐桌">🍽 餐桌</button>
+        <button class="tool" data-furniture="wardrobe" title="衣柜">🗄 衣柜</button>
+        <button class="tool" data-furniture="desk" title="书桌">🪑 书桌</button>
+        <button class="tool" data-furniture="cabinet" title="橱柜">🗄 橱柜</button>
+        <button class="tool" data-furniture="plant" title="盆栽">🪴 盆栽</button>
+        <button class="tool" data-furniture="lamp" title="落地灯">💡 落地灯</button>
+        <button class="tool" data-furniture="toilet" title="马桶">🚽 马桶</button>
+        <button class="tool" data-furniture="bathtub" title="浴缸">🛁 浴缸</button>
+        <button class="tool" data-furniture="sink" title="水槽">🚰 水槽</button>
+        <button class="tool" data-furniture="stove" title="灶台">🔥 灶台</button>
+        <button class="tool" data-furniture="fridge" title="冰箱">🧊 冰箱</button>
+        <button class="tool" data-furniture="washer" title="洗衣机">🌀 洗衣机</button>
+        <button class="tool" data-furniture="tv" title="电视">📺 电视</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>属性</h3>
+      <div id="props" class="props">
+        <p class="hint">选择对象查看属性</p>
+      </div>
+    </section>
+  </aside>
+
+  <section class="canvas-wrap">
+    <div class="views">
+      <div class="view" id="view-2d">
+        <canvas id="canvas-2d"></canvas>
+      </div>
+      <div class="split-divider" id="split-divider"></div>
+      <div class="view hidden" id="view-3d">
+        <div id="canvas-3d"></div>
+      </div>
+    </div>
+    <footer class="statusbar">
+      <span id="status-tool">工具: 选择</span>
+      <span id="status-pos">X: 0 Y: 0</span>
+      <span id="status-zoom">缩放: 100%</span>
+      <span id="status-info"></span>
+    </footer>
+  </section>
+</main>
+
+<input type="file" id="file-load" accept=".json" style="display:none">
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="js/state.js"></script>
+<script src="js/draw2d.js"></script>
+<script src="js/view3d.js"></script>
+<script src="js/tools.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

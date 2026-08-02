@@ -1,0 +1,72 @@
+// App bootstrap
+(function() {
+  function rebuild3D() {
+    if (window._view3d) window._view3d.buildFromState();
+  }
+  window.rebuild3D = rebuild3D;
+
+  // Keyboard shortcuts
+  window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+    if (ctrl && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+    if (ctrl && e.key.toLowerCase() === 'c') { e.preventDefault(); copySelection(); return; }
+    if (ctrl && e.key.toLowerCase() === 'v') { e.preventDefault(); pasteSelection(); return; }
+    switch (e.key.toLowerCase()) {
+      case 'v': document.querySelector('[data-tool="select"]').click(); break;
+      case 'w': document.querySelector('[data-tool="wall"]').click(); break;
+      case 'd': document.querySelector('[data-tool="door"]').click(); break;
+      case 'f': document.querySelector('[data-tool="window"]').click(); break;
+      case 'm': document.querySelector('[data-tool="dimension"]').click(); break;
+      case 'r': document.querySelector('[data-tool="room"]').click(); break;
+      case 'delete':
+        if (State.activeObject) {
+          _pushHistory();
+          let arr = null;
+          if (State.activeType === 'wall') arr = State.walls;
+          if (State.activeType === 'wall-endpoint') arr = State.walls;
+          if (State.activeType === 'door') arr = State.doors;
+          if (State.activeType === 'window') arr = State.windows;
+          if (State.activeType === 'furniture') arr = State.furnitures;
+          if (State.activeType === 'dimension') arr = State.dimensions;
+          if (arr) {
+            const idx = arr.findIndex(o => o.id === State.activeObject);
+            if (idx >= 0) arr.splice(idx, 1);
+            State.activeObject = null;
+            State.activeType = null;
+            rebuild3D();
+            renderProps();
+          }
+        }
+        break;
+      case 'escape':
+        State.wallStart = null;
+        State.pendingFurniture = null;
+        State.roomStart = null;
+        if (window._tools && window._tools.resetToolState) window._tools.resetToolState();
+        State.activeObject = null;
+        State.activeType = null;
+        State.selectedTool = 'select';
+        document.querySelectorAll('[data-tool]').forEach(b => b.classList.remove('active'));
+        document.querySelector('[data-tool="select"]').click();
+        break;
+      case '1': document.querySelector('[data-mode="2d"]').click(); break;
+      case '2': document.querySelector('[data-mode="3d"]').click(); break;
+      case '3': document.querySelector('[data-mode="split"]').click(); break;
+    }
+  });
+
+  // Initial state
+  rebuild3D();
+  document.getElementById('status-info').textContent = 'V选择 W墙 D门 F窗 M标注 R房间 | Ctrl+Z撤销 Ctrl+Y重做 Ctrl+C复制 Ctrl+V粘贴 | Del删除';
+})();
+
+function updateToolLabel() {
+  const map = {
+    select: '选择', wall: '墙体', door: '门',
+    window: '窗', room: '房间', dimension: '标注'
+  };
+  const el = document.getElementById('status-tool');
+  if (el) el.textContent = '工具: ' + (map[State.selectedTool] || State.selectedTool);
+}
