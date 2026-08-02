@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "sunAngle": 60,
+  "walls": [
+    { "id": "wall_1", "x1": 120, "y1": 100, "x2": 620, "y2": 100 },
+    { "id": "wall_2", "x1": 620, "y1": 100, "x2": 620, "y2": 420 },
+    { "id": "wall_3", "x1": 620, "y1": 420, "x2": 120, "y2": 420 },
+    { "id": "wall_4", "x1": 120, "y1": 420, "x2": 120, "y2": 100 }
+  ],
+  "doors": [],
+  "windows": [],
+  "furnitures": [
+    { "id": "furniture_1", "type": "sofa", "x": 210, "y": 180, "width": 160, "height": 70, "rotation": 0 },
+    { "id": "furniture_2", "type": "bed", "x": 430, "y": 180, "width": 150, "height": 210, "rotation": 0 },
+    { "id": "furniture_3", "type": "table", "x": 220, "y": 310, "width": 120, "height": 80, "rotation": 0 }
+  ],
+  "dimensions": []
+}
