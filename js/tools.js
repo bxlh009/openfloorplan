@@ -171,7 +171,7 @@
           });
           rebuild3D();
         } else {
-          document.getElementById('status-info').textContent = '该位置与其他对象重叠';
+          document.getElementById('status-info').textContent = t('message.overlap');
           setTimeout(() => document.getElementById('status-info').textContent = '', 2000);
         }
       }
@@ -239,7 +239,7 @@
             if (wallCollides(seg.x1, seg.y1, seg.x2, seg.y2)) { blocked = true; break; }
           }
           if (blocked) {
-            document.getElementById('status-info').textContent = '房间与现有墙体交叉';
+            document.getElementById('status-info').textContent = t('message.roomCross');
             setTimeout(() => document.getElementById('status-info').textContent = '', 2000);
           } else {
             for (const seg of segs) {
@@ -304,7 +304,7 @@
       State.wallEnd = { x: snapped.x, y: snapped.y };
       const len = Math.hypot(State.wallEnd.x - State.wallStart.x, State.wallEnd.y - State.wallStart.y);
       const ang = Math.atan2(State.wallEnd.y - State.wallStart.y, State.wallEnd.x - State.wallStart.x) * 180 / Math.PI;
-      document.getElementById('status-info').textContent = '长度: ' + (len/10).toFixed(2) + ' m | 角度: ' + ang.toFixed(1) + '\u00b0';
+      document.getElementById('status-info').textContent = t('message.length') + ': ' + (len/10).toFixed(2) + ' m | ' + t('message.angle') + ': ' + ang.toFixed(1) + '\u00b0';
       return;
     }
 
@@ -338,9 +338,9 @@
 
     // Status bar hints for pending operations
     if (State.selectedTool === 'room' && roomStart) {
-      document.getElementById('status-info').textContent = '点击第二角完成房间';
+      document.getElementById('status-info').textContent = t('message.placeRoomEnd');
     } else if (State.pendingFurniture) {
-      document.getElementById('status-info').textContent = '点击画布放置家具';
+      document.getElementById('status-info').textContent = t('message.placeFurniture');
     }
   });
 
@@ -370,7 +370,7 @@
               return;
             }
           } else {
-            document.getElementById('status-info').textContent = '墙体与现有墙体交叉';
+            document.getElementById('status-info').textContent = t('message.wallCross');
             setTimeout(() => document.getElementById('status-info').textContent = '', 2000);
           }
         }

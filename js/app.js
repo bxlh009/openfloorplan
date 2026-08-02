@@ -59,14 +59,14 @@
 
   // Initial state
   rebuild3D();
-  document.getElementById('status-info').textContent = 'V选择 W墙 D门 F窗 M标注 R房间 | Ctrl+Z撤销 Ctrl+Y重做 Ctrl+C复制 Ctrl+V粘贴 | Del删除';
+  document.getElementById('status-info').textContent = t('status.shortcuts');
 })();
 
 function updateToolLabel() {
   const map = {
-    select: '选择', wall: '墙体', door: '门',
-    window: '窗', room: '房间', dimension: '标注'
+    select: 'tool.select', wall: 'tool.wall', door: 'tool.door',
+    window: 'tool.window', room: 'tool.room', dimension: 'tool.dimension'
   };
   const el = document.getElementById('status-tool');
-  if (el) el.textContent = '工具: ' + (map[State.selectedTool] || State.selectedTool);
+  if (el) el.textContent = t('status.tool') + ': ' + (map[State.selectedTool] ? t(map[State.selectedTool]) : State.selectedTool);
 }

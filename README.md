@@ -13,6 +13,7 @@ OpenFloorPlan 让用户直接在浏览器中绘制墙体、房间、门窗和家
 - 3D 实时预览，以及 2D/3D 分屏模式
 - JSON 项目保存和载入
 - SVG 平面图导出
+- 中文 / English 双语界面：点击右上角 `EN` / `中文` 切换，语言偏好保存在浏览器
 - 键盘快捷键：`V` 选择、`W` 墙、`D` 门、`F` 窗、`R` 房间、`M` 标注、`Delete` 删除、`1/2/3` 切换视图
 
 ## 本地运行
@@ -39,6 +40,7 @@ js/view3d.js     Three.js 3D 预览
 js/tools.js      鼠标和键盘交互
 js/ui.js         属性面板、文件操作和视图切换
 js/app.js        应用启动
+js/i18n.js       中文 / English 界面文案与语言切换
 js/vendor/       固定的第三方运行时依赖
 serve.py         本地开发服务器
 ```

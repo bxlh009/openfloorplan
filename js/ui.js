@@ -22,7 +22,7 @@
       const spec = FURNITURE_DEFS[type];
       if (!spec) return;
       State.pendingFurniture = type;
-      document.getElementById('status-info').textContent = '点击画布放置' + (spec.label || type);
+      document.getElementById('status-info').textContent = t('message.place') + t(spec.labelKey || ('furniture.' + type));
     });
   });
 
@@ -41,11 +41,11 @@
       if (view3d) { view3d.style.position = 'relative'; view3d.appendChild(bar); }
     }
     bar.innerHTML =
-      '<span style="font-weight:600;">阳光</span>' +
+      '<span style="font-weight:600;">' + t('control.sun') + '</span>' +
       '<input type="range" min="10" max="89" value="' + State.sunAngle + '" id="sun-angle" style="width:70px;">' +
       '<span id="sun-val" style="width:28px;text-align:right;">' + State.sunAngle + '°</span>' +
-      '<button id="btn-walk" style="padding:2px 8px;">漫游</button>' +
-      '<button id="btn-png" style="padding:2px 8px;">导出PNG</button>';
+      '<button id="btn-walk" style="padding:2px 8px;">' + t('control.walk') + '</button>' +
+      '<button id="btn-png" style="padding:2px 8px;">' + t('control.exportPng') + '</button>';
     const slider = document.getElementById('sun-angle');
     slider.oninput = () => {
       State.sunAngle = parseFloat(slider.value);
@@ -63,7 +63,12 @@
       }
     };
   }
+  window.refreshDynamicControls = setupControls;
   setTimeout(setupControls, 500);
+
+  document.getElementById('btn-lang').addEventListener('click', () => {
+    setLanguage(getLanguage() === 'zh' ? 'en' : 'zh');
+  });
 
   function switchMode(mode) {
     document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
@@ -117,7 +122,7 @@
   })();
 
   document.getElementById('btn-new').addEventListener('click', () => {
-    if (!confirm('确定清空当前所有内容？')) return;
+    if (!confirm(t('prompt.new'))) return;
     _pushHistory();
     State.walls = []; State.doors = []; State.windows = []; State.rooms = []; State.furnitures = []; State.dimensions = [];
     State.activeObject = null; State.activeType = null; State.pendingFurniture = null; State.roomStart = null;
@@ -148,53 +153,53 @@
         State.nextId = Math.max(...State.walls.map(w => parseInt(w.id.split('_')[1])), ...State.doors.map(w => parseInt(w.id.split('_')[1])), ...State.windows.map(w => parseInt(w.id.split('_')[1])), ...State.furnitures.map(w => parseInt(w.id.split('_')[1])), 0) + 1;
         if (!isFinite(State.nextId) || State.nextId < 1) State.nextId = 1;
         rebuild3D(); if (window._view3d) window._view3d.setSunAngle(State.sunAngle);
-      } catch (err) { alert('载入失败: ' + err.message); }
+      } catch (err) { alert(t('error.load') + err.message); }
     };
     reader.readAsText(file); e.target.value = '';
   }
 
   function updateToolLabel() {
-    const map = { select: '选择', wall: '墙体', door: '门', window: '窗', room: '房间', dimension: '标注' };
+    const map = { select: 'tool.select', wall: 'tool.wall', door: 'tool.door', window: 'tool.window', room: 'tool.room', dimension: 'tool.dimension' };
     const el = document.getElementById('status-tool');
-    if (el) el.textContent = '工具: ' + (map[State.selectedTool] || State.selectedTool);
+    if (el) el.textContent = t('status.tool') + ': ' + (map[State.selectedTool] ? t(map[State.selectedTool]) : State.selectedTool);
   }
 
   function renderProps() {
     const box = document.getElementById("props");
-    if (!State.activeObject) { box.innerHTML = '<p class="hint">选择对象查看属性</p>'; return; }
+    if (!State.activeObject) { box.innerHTML = '<p class="hint">' + t('hint.selectObject') + '</p>'; return; }
     let obj = null, type = State.activeType;
     if (type === "wall") obj = State.walls.find(w => w.id === State.activeObject);
     if (type === "furniture") obj = State.furnitures.find(w => w.id === State.activeObject);
     if (type === "door") obj = State.doors.find(w => w.id === State.activeObject);
     if (type === "window") obj = State.windows.find(w => w.id === State.activeObject);
     if (type === "wall-endpoint") obj = State.walls.find(w => w.id === State.activeObject);
-    if (!obj) { box.innerHTML = '<p class="hint">选择对象查看属性</p>'; return; }
+    if (!obj) { box.innerHTML = '<p class="hint">' + t('hint.selectObject') + '</p>'; return; }
     let html = "";
     if (type === "wall" || type === "wall-endpoint") {
       const length = Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1);
       const angle = Math.atan2(obj.y2 - obj.y1, obj.x2 - obj.x1) * 180 / Math.PI;
-      html += propNum("长度(cm)", length.toFixed(0), 10, 2000, v => { const a = Math.atan2(obj.y2 - obj.y1, obj.x2 - obj.x1); obj.x2 = obj.x1 + Math.cos(a) * v; obj.y2 = obj.y1 + Math.sin(a) * v; _pushHistory(); rebuild3D(); }, 1);
-      html += propNum("角度(°)", angle.toFixed(1), -180, 180, v => { const len = Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1); const a = v * Math.PI / 180; obj.x2 = obj.x1 + Math.cos(a) * len; obj.y2 = obj.y1 + Math.sin(a) * len; _pushHistory(); rebuild3D(); });
-      html += propNum("厚度(cm)", obj.thickness, 5, 50, v => { obj.thickness = v; _pushHistory(); rebuild3D(); }, 1);
-      html += propNum("高度(cm)", obj.height, 100, 400, v => { obj.height = v; _pushHistory(); rebuild3D(); }, 5);
-      html += colorPicker("颜色", obj.color || "#f5f0e8", v => { obj.color = v; _pushHistory(); rebuild3D(); });
+      html += propNum("prop.length", length.toFixed(0), 10, 2000, v => { const a = Math.atan2(obj.y2 - obj.y1, obj.x2 - obj.x1); obj.x2 = obj.x1 + Math.cos(a) * v; obj.y2 = obj.y1 + Math.sin(a) * v; _pushHistory(); rebuild3D(); }, 1);
+      html += propNum("prop.angle", angle.toFixed(1), -180, 180, v => { const len = Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1); const a = v * Math.PI / 180; obj.x2 = obj.x1 + Math.cos(a) * len; obj.y2 = obj.y1 + Math.sin(a) * len; _pushHistory(); rebuild3D(); });
+      html += propNum("prop.thickness", obj.thickness, 5, 50, v => { obj.thickness = v; _pushHistory(); rebuild3D(); }, 1);
+      html += propNum("prop.height", obj.height, 100, 400, v => { obj.height = v; _pushHistory(); rebuild3D(); }, 5);
+      html += colorPicker("prop.color", obj.color || "#f5f0e8", v => { obj.color = v; _pushHistory(); rebuild3D(); });
     } else if (type === "furniture") {
-      html += `<div class="prop-row"><span>类型</span><span>${FURNITURE_DEFS[obj.type]?.label || obj.type}</span></div>`;
-      html += propNum("宽度(cm)", obj.w.toFixed(0), 10, 500, v => { obj.w = v; _pushHistory(); rebuild3D(); }, 1);
-      html += propNum("深度(cm)", (obj.d || obj.h).toFixed(0), 10, 500, v => { obj.d = v; _pushHistory(); rebuild3D(); }, 1);
-      html += propNum("高度(cm)", (obj.h || 50).toFixed(0), 5, 400, v => { obj.h = v; _pushHistory(); rebuild3D(); }, 1);
-      html += propNum("旋转(°)", ((obj.rotation || 0) * 180 / Math.PI).toFixed(0), 0, 360, v => { obj.rotation = v * Math.PI / 180; _pushHistory(); rebuild3D(); });
-      html += colorPicker("颜色", obj.color || "#8b6f47", v => { obj.color = v; _pushHistory(); rebuild3D(); });
+      html += `<div class="prop-row"><span data-prop-key="prop.type">${t('prop.type')}</span><span>${t(FURNITURE_DEFS[obj.type]?.labelKey || ('furniture.' + obj.type))}</span></div>`;
+      html += propNum("prop.width", obj.w.toFixed(0), 10, 500, v => { obj.w = v; _pushHistory(); rebuild3D(); }, 1);
+      html += propNum("prop.depth", (obj.d || obj.h).toFixed(0), 10, 500, v => { obj.d = v; _pushHistory(); rebuild3D(); }, 1);
+      html += propNum("prop.height", (obj.h || 50).toFixed(0), 5, 400, v => { obj.h = v; _pushHistory(); rebuild3D(); }, 1);
+      html += propNum("prop.rotation", ((obj.rotation || 0) * 180 / Math.PI).toFixed(0), 0, 360, v => { obj.rotation = v * Math.PI / 180; _pushHistory(); rebuild3D(); });
+      html += colorPicker("prop.color", obj.color || "#8b6f47", v => { obj.color = v; _pushHistory(); rebuild3D(); });
     } else if (type === "door") {
-      html += propNum("宽度(cm)", obj.width.toFixed(0), 50, 200, v => { obj.width = v; _pushHistory(); rebuild3D(); }, 5);
+      html += propNum("prop.width", obj.width.toFixed(0), 50, 200, v => { obj.width = v; _pushHistory(); rebuild3D(); }, 5);
       html += propNum("X", obj.x.toFixed(0), -10000, 10000, v => { obj.x = v; _pushHistory(); rebuild3D(); }, 5);
       html += propNum("Y", obj.y.toFixed(0), -10000, 10000, v => { obj.y = v; _pushHistory(); rebuild3D(); }, 5);
     } else if (type === "window") {
-      html += propNum("宽度(cm)", obj.width.toFixed(0), 50, 300, v => { obj.width = v; _pushHistory(); rebuild3D(); }, 5);
+      html += propNum("prop.width", obj.width.toFixed(0), 50, 300, v => { obj.width = v; _pushHistory(); rebuild3D(); }, 5);
       html += propNum("X", obj.x.toFixed(0), -10000, 10000, v => { obj.x = v; _pushHistory(); rebuild3D(); }, 5);
       html += propNum("Y", obj.y.toFixed(0), -10000, 10000, v => { obj.y = v; _pushHistory(); rebuild3D(); }, 5);
     }
-    html += '<button id="btn-del" style="margin-top:8px;padding:4px 8px;background:#ff3b30;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;width:100%;">删除</button>';
+    html += '<button id="btn-del" style="margin-top:8px;padding:4px 8px;background:#ff3b30;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;width:100%;">' + t('action.delete') + '</button>';
     box.innerHTML = html;
     document.getElementById("btn-del").addEventListener("click", () => {
       _pushHistory();
@@ -206,33 +211,32 @@
     bindPropInputs();
   }
 
-  function propNum(label, value, min, max, onInput, step) {
+  function propNum(labelKey, value, min, max, onInput, step) {
     const s = step != null ? step : 1;
-    return `<div class="prop-row"><span>${label}</span><input type="number" value="${value}" min="${min}" max="${max}" step="${s}"></div>`;
+    return `<div class="prop-row"><span data-prop-key="${labelKey}">${t(labelKey)}</span><input type="number" value="${value}" min="${min}" max="${max}" step="${s}"></div>`;
   }
-  function colorPicker(label, value, onInput) {
-    return `<div class="prop-row"><span>${label}</span><input type="color" value="${value}" style="width:40px;height:22px;padding:0;border:1px solid #ccc;border-radius:3px;"></div>`;
+  function colorPicker(labelKey, value, onInput) {
+    return `<div class="prop-row"><span data-prop-key="${labelKey}">${t(labelKey)}</span><input type="color" value="${value}" style="width:40px;height:22px;padding:0;border:1px solid #ccc;border-radius:3px;"></div>`;
   }
   function bindPropInputs() {
     const box = document.getElementById("props");
     const inputs = box.querySelectorAll("input");
-    const rows = box.querySelectorAll(".prop-row");
     inputs.forEach((inp, idx) => {
-      const label = rows[idx]?.querySelector("span")?.textContent || "";
+      const label = inp.parentElement?.querySelector("span")?.dataset.propKey || "";
       inp.addEventListener("input", () => {
         let v = parseFloat(inp.value);
         if (inp.type === "color") v = inp.value;
         if (isNaN(v) && inp.type !== "color") return;
-        if (label === "长度(cm)") { const o = State.walls.find(w => w.id === State.activeObject); if (o) { const a = Math.atan2(o.y2 - o.y1, o.x2 - o.x1); o.x2 = o.x1 + Math.cos(a) * v; o.y2 = o.y1 + Math.sin(a) * v; _pushHistory(); rebuild3D(); } }
-        if (label === "角度(°)") { const o = State.walls.find(w => w.id === State.activeObject); if (o) { const len = Math.hypot(o.x2 - o.x1, o.y2 - o.y1); const a = v * Math.PI / 180; o.x2 = o.x1 + Math.cos(a) * len; o.y2 = o.y1 + Math.sin(a) * len; _pushHistory(); rebuild3D(); } }
-        if (label === "厚度(cm)") { const o = State.walls.find(w => w.id === State.activeObject); if (o) { o.thickness = v; _pushHistory(); rebuild3D(); } }
-        if (label === "高度(cm)") { const o = State.walls.find(w => w.id === State.activeObject); if (o) { o.height = v; _pushHistory(); rebuild3D(); } }
-        if (label === "宽度(cm)") { const f = State.furnitures.find(w => w.id === State.activeObject); const d = State.doors.find(w => w.id === State.activeObject); const wi = State.windows.find(w => w.id === State.activeObject); if (f) f.w = v; if (d) d.width = v; if (wi) wi.width = v; _pushHistory(); rebuild3D(); }
-        if (label === "深度(cm)") { const f = State.furnitures.find(w => w.id === State.activeObject); if (f) f.d = v; _pushHistory(); rebuild3D(); }
-        if (label === "旋转(°)") { const f = State.furnitures.find(w => w.id === State.activeObject); if (f) f.rotation = v * Math.PI / 180; _pushHistory(); rebuild3D(); }
+        if (label === "prop.length") { const o = State.walls.find(w => w.id === State.activeObject); if (o) { const a = Math.atan2(o.y2 - o.y1, o.x2 - o.x1); o.x2 = o.x1 + Math.cos(a) * v; o.y2 = o.y1 + Math.sin(a) * v; _pushHistory(); rebuild3D(); } }
+        if (label === "prop.angle") { const o = State.walls.find(w => w.id === State.activeObject); if (o) { const len = Math.hypot(o.x2 - o.x1, o.y2 - o.y1); const a = v * Math.PI / 180; o.x2 = o.x1 + Math.cos(a) * len; o.y2 = o.y1 + Math.sin(a) * len; _pushHistory(); rebuild3D(); } }
+        if (label === "prop.thickness") { const o = State.walls.find(w => w.id === State.activeObject); if (o) { o.thickness = v; _pushHistory(); rebuild3D(); } }
+        if (label === "prop.height") { const o = State.walls.find(w => w.id === State.activeObject); if (o) { o.height = v; _pushHistory(); rebuild3D(); } }
+        if (label === "prop.width") { const f = State.furnitures.find(w => w.id === State.activeObject); const d = State.doors.find(w => w.id === State.activeObject); const wi = State.windows.find(w => w.id === State.activeObject); if (f) f.w = v; if (d) d.width = v; if (wi) wi.width = v; _pushHistory(); rebuild3D(); }
+        if (label === "prop.depth") { const f = State.furnitures.find(w => w.id === State.activeObject); if (f) f.d = v; _pushHistory(); rebuild3D(); }
+        if (label === "prop.rotation") { const f = State.furnitures.find(w => w.id === State.activeObject); if (f) f.rotation = v * Math.PI / 180; _pushHistory(); rebuild3D(); }
         if (label === "X") { const d = State.doors.find(w => w.id === State.activeObject); const wi = State.windows.find(w => w.id === State.activeObject); if (d) d.x = v; if (wi) wi.x = v; _pushHistory(); rebuild3D(); }
         if (label === "Y") { const d = State.doors.find(w => w.id === State.activeObject); const wi = State.windows.find(w => w.id === State.activeObject); if (d) d.y = v; if (wi) wi.y = v; _pushHistory(); rebuild3D(); }
-        if (label === "颜色") { const o = State.walls.find(w => w.id === State.activeObject) || State.furnitures.find(w => w.id === State.activeObject); if (o) { o.color = v; _pushHistory(); rebuild3D(); } }
+        if (label === "prop.color") { const o = State.walls.find(w => w.id === State.activeObject) || State.furnitures.find(w => w.id === State.activeObject); if (o) { o.color = v; _pushHistory(); rebuild3D(); } }
       });
     });
   }
@@ -240,19 +244,19 @@
 })();
 
 const FURNITURE_DEFS = {
-  sofa: { w: 180, d: 85, h: 80, label: '沙发' },
-  bed: { w: 160, d: 200, h: 50, label: '床' },
-  table: { w: 120, d: 80, h: 75, label: '餐桌' },
-  wardrobe: { w: 180, d: 60, h: 200, label: '衣柜' },
-  desk: { w: 120, d: 60, h: 75, label: '书桌' },
-  plant: { w: 30, d: 30, h: 100, label: '盆栽' },
-  toilet: { w: 40, d: 60, h: 40, label: '马桶' },
-  bathtub: { w: 170, d: 70, h: 55, label: '浴缸' },
-  cabinet: { w: 80, d: 50, h: 90, label: '橱柜' },
-  fridge: { w: 70, d: 70, h: 180, label: '冰箱' },
-  tv: { w: 120, d: 8, h: 70, label: '电视' },
-  lamp: { w: 25, d: 25, h: 150, label: '落地灯' },
-  stove: { w: 60, d: 60, h: 85, label: '灶台' },
-  sink: { w: 60, d: 50, h: 85, label: '水槽' },
-  washer: { w: 60, d: 60, h: 85, label: '洗衣机' },
+  sofa: { w: 180, d: 85, h: 80, labelKey: 'furniture.sofa' },
+  bed: { w: 160, d: 200, h: 50, labelKey: 'furniture.bed' },
+  table: { w: 120, d: 80, h: 75, labelKey: 'furniture.table' },
+  wardrobe: { w: 180, d: 60, h: 200, labelKey: 'furniture.wardrobe' },
+  desk: { w: 120, d: 60, h: 75, labelKey: 'furniture.desk' },
+  plant: { w: 30, d: 30, h: 100, labelKey: 'furniture.plant' },
+  toilet: { w: 40, d: 60, h: 40, labelKey: 'furniture.toilet' },
+  bathtub: { w: 170, d: 70, h: 55, labelKey: 'furniture.bathtub' },
+  cabinet: { w: 80, d: 50, h: 90, labelKey: 'furniture.cabinet' },
+  fridge: { w: 70, d: 70, h: 180, labelKey: 'furniture.fridge' },
+  tv: { w: 120, d: 8, h: 70, labelKey: 'furniture.tv' },
+  lamp: { w: 25, d: 25, h: 150, labelKey: 'furniture.lamp' },
+  stove: { w: 60, d: 60, h: 85, labelKey: 'furniture.stove' },
+  sink: { w: 60, d: 50, h: 85, labelKey: 'furniture.sink' },
+  washer: { w: 60, d: 60, h: 85, labelKey: 'furniture.washer' },
 };

@@ -192,11 +192,7 @@
   }
 
   function getFurnitureLabel(type) {
-    const map = {
-      sofa: '沙发', bed: '床', table: '餐桌', wardrobe: '衣柜',
-      toilet: '马桶', bathtub: '浴缸', desk: '书桌', plant: '盆栽'
-    };
-    return map[type] || type;
+    return t('furniture.' + type) || type;
   }
 
   function drawDimension(dim) {

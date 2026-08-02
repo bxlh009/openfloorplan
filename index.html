@@ -9,59 +9,60 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand">户型设计师</div>
+  <div class="brand" data-i18n="app.brand">户型设计师</div>
   <nav class="modes">
-    <button class="mode active" data-mode="2d">2D 平面</button>
-    <button class="mode" data-mode="3d">3D 预览</button>
-    <button class="mode" data-mode="split">分屏</button>
+    <button class="mode active" data-mode="2d" data-i18n="mode.2d">2D 平面</button>
+    <button class="mode" data-mode="3d" data-i18n="mode.3d">3D 预览</button>
+    <button class="mode" data-mode="split" data-i18n="mode.split">分屏</button>
   </nav>
   <div class="actions">
-    <button id="btn-new">新建</button>
-    <button id="btn-save">保存</button>
-    <button id="btn-load">载入</button>
-    <button id="btn-export">导出 SVG</button>
+    <button id="btn-new" data-i18n="action.new">新建</button>
+    <button id="btn-save" data-i18n="action.save">保存</button>
+    <button id="btn-load" data-i18n="action.load">载入</button>
+    <button id="btn-export" data-i18n="action.exportSvg">导出 SVG</button>
+    <button id="btn-lang" type="button">EN</button>
   </div>
 </header>
 
 <main class="layout">
   <aside class="sidebar">
     <section class="panel">
-      <h3>绘图</h3>
+      <h3 data-i18n="section.drawing">绘图</h3>
       <div class="tool-grid">
-        <button class="tool" data-tool="select" title="选择 (V)"><span class="ico">↖</span><span>选择</span></button>
-        <button class="tool" data-tool="wall" title="画墙 (W)"><span class="ico">▬</span><span>墙体</span></button>
-        <button class="tool" data-tool="door" title="门 (D)"><span class="ico">🚪</span><span>门</span></button>
-        <button class="tool" data-tool="window" title="窗 (F)"><span class="ico">▭</span><span>窗</span></button>
-        <button class="tool" data-tool="room" title="房间 (R)"><span class="ico">▣</span><span>房间</span></button>
-        <button class="tool" data-tool="dimension" title="标注 (M)"><span class="ico">↔</span><span>标注</span></button>
+        <button class="tool" data-tool="select" data-i18n-title="tool.select" title="选择 (V)"><span class="ico">↖</span><span data-i18n="tool.select">选择</span></button>
+        <button class="tool" data-tool="wall" data-i18n-title="tool.wall" title="画墙 (W)"><span class="ico">▬</span><span data-i18n="tool.wall">墙体</span></button>
+        <button class="tool" data-tool="door" data-i18n-title="tool.door" title="门 (D)"><span class="ico">🚪</span><span data-i18n="tool.door">门</span></button>
+        <button class="tool" data-tool="window" data-i18n-title="tool.window" title="窗 (F)"><span class="ico">▭</span><span data-i18n="tool.window">窗</span></button>
+        <button class="tool" data-tool="room" data-i18n-title="tool.room" title="房间 (R)"><span class="ico">▣</span><span data-i18n="tool.room">房间</span></button>
+        <button class="tool" data-tool="dimension" data-i18n-title="tool.dimension" title="标注 (M)"><span class="ico">↔</span><span data-i18n="tool.dimension">标注</span></button>
       </div>
     </section>
 
     <section class="panel">
-      <h3>家具</h3>
+      <h3 data-i18n="section.furniture">家具</h3>
       <div class="tool-grid">
-        <button class="tool" data-furniture="sofa" title="沙发">🛋 沙发</button>
-        <button class="tool" data-furniture="bed" title="床">🛏 床</button>
-        <button class="tool" data-furniture="table" title="餐桌">🍽 餐桌</button>
-        <button class="tool" data-furniture="wardrobe" title="衣柜">🗄 衣柜</button>
-        <button class="tool" data-furniture="desk" title="书桌">🪑 书桌</button>
-        <button class="tool" data-furniture="cabinet" title="橱柜">🗄 橱柜</button>
-        <button class="tool" data-furniture="plant" title="盆栽">🪴 盆栽</button>
-        <button class="tool" data-furniture="lamp" title="落地灯">💡 落地灯</button>
-        <button class="tool" data-furniture="toilet" title="马桶">🚽 马桶</button>
-        <button class="tool" data-furniture="bathtub" title="浴缸">🛁 浴缸</button>
-        <button class="tool" data-furniture="sink" title="水槽">🚰 水槽</button>
-        <button class="tool" data-furniture="stove" title="灶台">🔥 灶台</button>
-        <button class="tool" data-furniture="fridge" title="冰箱">🧊 冰箱</button>
-        <button class="tool" data-furniture="washer" title="洗衣机">🌀 洗衣机</button>
-        <button class="tool" data-furniture="tv" title="电视">📺 电视</button>
+        <button class="tool" data-furniture="sofa"><span>🛋</span> <span data-i18n="furniture.sofa">沙发</span></button>
+        <button class="tool" data-furniture="bed"><span>🛏</span> <span data-i18n="furniture.bed">床</span></button>
+        <button class="tool" data-furniture="table"><span>🍽</span> <span data-i18n="furniture.table">餐桌</span></button>
+        <button class="tool" data-furniture="wardrobe"><span>🗄</span> <span data-i18n="furniture.wardrobe">衣柜</span></button>
+        <button class="tool" data-furniture="desk"><span>🪑</span> <span data-i18n="furniture.desk">书桌</span></button>
+        <button class="tool" data-furniture="cabinet"><span>🗄</span> <span data-i18n="furniture.cabinet">橱柜</span></button>
+        <button class="tool" data-furniture="plant"><span>🪴</span> <span data-i18n="furniture.plant">盆栽</span></button>
+        <button class="tool" data-furniture="lamp"><span>💡</span> <span data-i18n="furniture.lamp">落地灯</span></button>
+        <button class="tool" data-furniture="toilet"><span>🚽</span> <span data-i18n="furniture.toilet">马桶</span></button>
+        <button class="tool" data-furniture="bathtub"><span>🛁</span> <span data-i18n="furniture.bathtub">浴缸</span></button>
+        <button class="tool" data-furniture="sink"><span>🚰</span> <span data-i18n="furniture.sink">水槽</span></button>
+        <button class="tool" data-furniture="stove"><span>🔥</span> <span data-i18n="furniture.stove">灶台</span></button>
+        <button class="tool" data-furniture="fridge"><span>🧊</span> <span data-i18n="furniture.fridge">冰箱</span></button>
+        <button class="tool" data-furniture="washer"><span>🌀</span> <span data-i18n="furniture.washer">洗衣机</span></button>
+        <button class="tool" data-furniture="tv"><span>📺</span> <span data-i18n="furniture.tv">电视</span></button>
       </div>
     </section>
 
     <section class="panel">
-      <h3>属性</h3>
+      <h3 data-i18n="section.properties">属性</h3>
       <div id="props" class="props">
-        <p class="hint">选择对象查看属性</p>
+        <p class="hint" data-i18n="hint.selectObject">选择对象查看属性</p>
       </div>
     </section>
   </aside>
@@ -88,6 +89,7 @@
 <input type="file" id="file-load" accept=".json" style="display:none">
 
 <script src="js/vendor/three.min.js"></script>
+    <script src="js/i18n.js?v=20260802"></script>
 <script src="js/state.js"></script>
 <script src="js/draw2d.js"></script>
 <script src="js/view3d.js"></script>
