@@ -2,7 +2,7 @@
 
 一个本地优先、无需账号的 2D/3D 户型设计器。
 
-Current version: `0.2.0`
+Current version: `0.4.1`
 
 OpenFloorPlan 让用户直接在浏览器中绘制墙体、房间、门窗和家具，并实时查看 3D 预览。项目不要求后端、不上传设计文件，适合快速规划房间布局、制作平面草图和分享可复现的 JSON 项目文件。
 
@@ -12,6 +12,12 @@ OpenFloorPlan 让用户直接在浏览器中绘制墙体、房间、门窗和家
 - 家具库：床、沙发、餐桌、衣柜、厨卫和常用家电
 - 3D 实时预览，以及 2D/3D 分屏模式
 - JSON 项目保存和载入
+- 现代、北欧、日式、侘寂、工业、美式六套本地装修风格，联动墙面、地板、家具与灯光
+- 门窗在 3D 墙体上生成真实开洞
+- 3D 默认剖切近侧墙，可一键切回完整外观；门扇与 2D 开启方向一致
+- 家具可在 2D 直接选择；3D 中双击家具选中，拖动已选家具会实时同步到 2D 并支持撤销
+- 标注工具提供起点、终点和实时长度预览；门窗可调整尺寸、离地高度和沿墙位置
+- 室内风格与建筑构件风格独立：家具比例、门型、窗格、踢脚线和顶线会改变几何
 - SVG 平面图导出
 - 中文 / English 双语界面：点击右上角 `EN` / `中文` 切换，语言偏好保存在浏览器
 - 键盘快捷键：`V` 选择、`W` 墙、`D` 门、`F` 窗、`R` 房间、`M` 标注、`Delete` 删除、`1/2/3` 切换视图
@@ -35,6 +41,7 @@ python serve.py
 index.html       页面结构和工具栏
 css/style.css    界面样式
 js/state.js      项目状态和 JSON 序列化
+js/project.js    JSON v2、旧文件迁移、撤销事务和装修风格数据
 js/draw2d.js     2D 画布渲染
 js/view3d.js     Three.js 3D 预览
 js/tools.js      鼠标和键盘交互
@@ -54,6 +61,8 @@ serve.py         本地开发服务器
 提交前运行：
 
 ```powershell
+node --test tests/*.test.js
+node --check js/project.js
 python -m py_compile serve.py
 node --check js/state.js
 node --check js/draw2d.js
@@ -61,6 +70,7 @@ node --check js/view3d.js
 node --check js/tools.js
 node --check js/ui.js
 node --check js/app.js
+node --check js/i18n.js
 ```
 
 ## 贡献

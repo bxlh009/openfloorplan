@@ -4,9 +4,9 @@
 
   let isPanning = false;
   let panStart = null;
-  let dimStart = null;
   let moveStart = null;
   let moveObj = null;
+  let moveHistory = null;
   let wallMouseDown = false;
   let draggedWallEndpoint = null;
   let roomStart = null; // First corner for room tool
@@ -78,6 +78,17 @@
   // --- Picking ---
 
   function pickAt(wx, wy) {
+    // Visible objects take priority over structural lines underneath them.
+    for (let i = State.furnitures.length - 1; i >= 0; i--) {
+      const f = State.furnitures[i];
+      if (ProjectModel.hitTestFurniture(f, wx, wy)) return { type: 'furniture', obj: f, id: f.id };
+    }
+    for (const d of State.doors) {
+      if (Math.hypot(wx - d.x, wy - d.y) < Math.max(15, d.width / 2)) return { type: 'door', obj: d, id: d.id };
+    }
+    for (const win of State.windows) {
+      if (Math.hypot(wx - win.x, wy - win.y) < Math.max(15, win.width / 2)) return { type: 'window', obj: win, id: win.id };
+    }
     for (let i = State.walls.length - 1; i >= 0; i--) {
       const w = State.walls[i];
       if (Math.hypot(wx - w.x1, wy - w.y1) < 12) return { type: 'wall-endpoint', obj: w, id: w.id, endpoint: 0 };
@@ -87,28 +98,6 @@
       const w = State.walls[i];
       const d = distToSeg(wx, wy, w.x1, w.y1, w.x2, w.y2);
       if (d < 10 / State.zoom) return { type: 'wall', obj: w, id: w.id };
-    }
-    for (const d of State.doors) {
-      const wall = State.walls.find(w => w.id === d.wallId);
-      if (wall) {
-        const proj = projectOnWall(wall, d.x/100, d.y/100);
-        const d2d = Math.hypot(wx - d.x, wy - d.y);
-        if (d2d < 15) return { type: 'door', obj: d, id: d.id };
-      }
-    }
-    for (const w of State.windows) {
-      const d2d = Math.hypot(wx - w.x, wy - w.y);
-      if (d2d < 15) return { type: 'window', obj: w, id: w.id };
-    }
-    for (let i = State.furnitures.length - 1; i >= 0; i--) {
-      const f = State.furnitures[i];
-      if (Math.abs(wx - f.x) < f.w / 2 && Math.abs(wy - f.y) < (f.d || f.h) / 2) return { type: 'furniture', obj: f, id: f.id };
-    }
-    for (const d of State.doors) {
-      if (Math.hypot(d.x - wx, d.y - wy) < 10) return { type: 'door', obj: d, id: d.id };
-    }
-    for (const w of State.windows) {
-      if (Math.hypot(w.x - wx, w.y - wy) < 10) return { type: 'window', obj: w, id: w.id };
     }
     return null;
   }
@@ -134,7 +123,7 @@
   // --- Reset tool state (called on tool switch) ---
 
   function resetToolState() {
-    dimStart = null;
+    State.dimensionStart = null;
     roomStart = null;
     State.roomStart = null;
     isPanning = false;
@@ -165,10 +154,21 @@
         const fx = snapToGrid(w.x, State.gridSize);
         const fy = snapToGrid(w.y, State.gridSize);
         if (!furnitureOverlaps(fx, fy, spec.w, spec.d)) {
-          State.furnitures.push({
-            id: genId(), type: State.pendingFurniture,
-            x: fx, y: fy, w: spec.w, d: spec.d, h: spec.h, rotation: 0,
+          let furnitureId;
+          mutateProject(() => {
+            furnitureId = genId();
+            State.furnitures.push({
+              id: furnitureId, type: State.pendingFurniture,
+              x: fx, y: fy, w: spec.w, d: spec.d, h: spec.h, rotation: 0,
+            });
           });
+          State.activeObject = furnitureId;
+          State.activeType = 'furniture';
+          State.selectedTool = 'select';
+          document.querySelectorAll('[data-tool]').forEach(button => button.classList.toggle('active', button.dataset.tool === 'select'));
+          document.querySelectorAll('[data-furniture]').forEach(button => button.classList.remove('active'));
+          if (window.updateToolLabel) window.updateToolLabel();
+          if (window.renderProps) window.renderProps();
           rebuild3D();
         } else {
           document.getElementById('status-info').textContent = t('message.overlap');
@@ -187,6 +187,7 @@
           State.activeType = pick.type;
           moveStart = { x: w.x, y: w.y };
           moveObj = pick;
+          moveHistory = beginHistory();
           if (pick.type === 'wall-endpoint') {
             draggedWallEndpoint = { wall: pick.obj, endpoint: pick.endpoint };
           }
@@ -209,10 +210,12 @@
         break;
       }
       case 'dimension': {
-        if (!dimStart) dimStart = { x: w.x, y: w.y };
+        if (!State.dimensionStart) State.dimensionStart = { x: w.x, y: w.y };
         else {
-          State.dimensions.push({ id: genId(), x1: dimStart.x, y1: dimStart.y, x2: w.x, y2: w.y });
-          dimStart = null;
+          mutateProject(() => {
+            State.dimensions.push({ id: genId(), x1: State.dimensionStart.x, y1: State.dimensionStart.y, x2: w.x, y2: w.y });
+          });
+          State.dimensionStart = null;
         }
         break;
       }
@@ -242,9 +245,9 @@
             document.getElementById('status-info').textContent = t('message.roomCross');
             setTimeout(() => document.getElementById('status-info').textContent = '', 2000);
           } else {
-            for (const seg of segs) {
-              State.walls.push({ id: genId(), ...seg, thickness: 20, height: 280 });
-            }
+            mutateProject(() => {
+              for (const seg of segs) State.walls.push({ id: genId(), ...seg, thickness: 20, height: 280 });
+            });
             rebuild3D();
           }
           roomStart = null;
@@ -257,10 +260,12 @@
         if (near) {
           const halfW = 45; // half door width in cm
           const pos = clampToWall(near.wall, near.x, near.y, halfW);
-          State.doors.push({
-            id: genId(), x: pos.x, y: pos.y, wallId: near.wall.id,
-            width: 90,
-            angle: Math.atan2(near.wall.y2 - near.wall.y1, near.wall.x2 - near.wall.x1),
+          mutateProject(() => {
+            State.doors.push({
+              id: genId(), x: pos.x, y: pos.y, wallId: near.wall.id,
+              width: 90,
+              angle: Math.atan2(near.wall.y2 - near.wall.y1, near.wall.x2 - near.wall.x1),
+            });
           });
           rebuild3D();
         }
@@ -271,10 +276,12 @@
         if (near) {
           const halfW = 60; // half window width in cm
           const pos = clampToWall(near.wall, near.x, near.y, halfW);
-          State.windows.push({
-            id: genId(), x: pos.x, y: pos.y, wallId: near.wall.id,
-            width: 120,
-            angle: Math.atan2(near.wall.y2 - near.wall.y1, near.wall.x2 - near.wall.x1),
+          mutateProject(() => {
+            State.windows.push({
+              id: genId(), x: pos.x, y: pos.y, wallId: near.wall.id,
+              width: 120,
+              angle: Math.atan2(near.wall.y2 - near.wall.y1, near.wall.x2 - near.wall.x1),
+            });
           });
           rebuild3D();
         }
@@ -327,7 +334,12 @@
       if (moveObj.type === 'furniture') {
         moveObj.obj.x += dx; moveObj.obj.y += dy;
       } else if (moveObj.type === 'door' || moveObj.type === 'window') {
-        moveObj.obj.x += dx; moveObj.obj.y += dy;
+        const wall = State.walls.find(item => item.id === moveObj.obj.wallId);
+        if (wall) {
+          const offset = ProjectModel.getOpeningOffset({ x: w.x, y: w.y }, wall);
+          const placed = ProjectModel.placeOpeningOnWall(moveObj.obj, wall, offset);
+          moveObj.obj.x = placed.x; moveObj.obj.y = placed.y;
+        }
       } else if (moveObj.type === 'wall') {
         moveObj.obj.x1 += dx; moveObj.obj.y1 += dy;
         moveObj.obj.x2 += dx; moveObj.obj.y2 += dy;
@@ -337,7 +349,12 @@
     }
 
     // Status bar hints for pending operations
-    if (State.selectedTool === 'room' && roomStart) {
+    if (State.selectedTool === 'dimension') {
+      if (State.dimensionStart) {
+        const length = Math.hypot(w.x - State.dimensionStart.x, w.y - State.dimensionStart.y);
+        document.getElementById('status-info').textContent = t('message.dimensionEnd') + ' · ' + (length / 100).toFixed(2) + ' m';
+      } else document.getElementById('status-info').textContent = t('message.dimensionStart');
+    } else if (State.selectedTool === 'room' && roomStart) {
       document.getElementById('status-info').textContent = t('message.placeRoomEnd');
     } else if (State.pendingFurniture) {
       document.getElementById('status-info').textContent = t('message.placeFurniture');
@@ -346,6 +363,8 @@
 
   canvas.addEventListener('pointerup', e => {
     isPanning = false;
+    if (moveHistory != null) commitHistory(moveHistory);
+    moveHistory = null;
     moveStart = null;
     moveObj = null;
     draggedWallEndpoint = null;
@@ -358,11 +377,13 @@
         const length = Math.hypot(dx, dy);
         if (length > 5) {
           if (!wallCollides(State.wallStart.x, State.wallStart.y, end.x, end.y)) {
-            State.walls.push({
-              id: genId(),
-              x1: State.wallStart.x, y1: State.wallStart.y,
-              x2: end.x, y2: end.y,
-              thickness: 20, height: 280,
+            mutateProject(() => {
+              State.walls.push({
+                id: genId(),
+                x1: State.wallStart.x, y1: State.wallStart.y,
+                x2: end.x, y2: end.y,
+                thickness: 20, height: 280,
+              });
             });
             if (e.shiftKey) {
               State.wallStart = { x: end.x, y: end.y };

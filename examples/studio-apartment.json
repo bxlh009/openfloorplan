@@ -1,18 +1,25 @@
 {
-  "version": 1,
+  "version": 2,
+  "style": "modern",
+  "architectureStyle": "modern",
   "sunAngle": 60,
   "walls": [
-    { "id": "wall_1", "x1": 120, "y1": 100, "x2": 620, "y2": 100 },
-    { "id": "wall_2", "x1": 620, "y1": 100, "x2": 620, "y2": 420 },
-    { "id": "wall_3", "x1": 620, "y1": 420, "x2": 120, "y2": 420 },
-    { "id": "wall_4", "x1": 120, "y1": 420, "x2": 120, "y2": 100 }
+    { "id": "wall_1", "x1": 120, "y1": 100, "x2": 620, "y2": 100, "thickness": 20, "height": 280 },
+    { "id": "wall_2", "x1": 620, "y1": 100, "x2": 620, "y2": 420, "thickness": 20, "height": 280 },
+    { "id": "wall_3", "x1": 620, "y1": 420, "x2": 120, "y2": 420, "thickness": 20, "height": 280 },
+    { "id": "wall_4", "x1": 120, "y1": 420, "x2": 120, "y2": 100, "thickness": 20, "height": 280 }
   ],
-  "doors": [],
-  "windows": [],
+  "doors": [
+    { "id": "door_1", "wallId": "wall_3", "x": 200, "y": 420, "width": 90, "height": 210 }
+  ],
+  "windows": [
+    { "id": "window_1", "wallId": "wall_2", "x": 620, "y": 220, "width": 120, "height": 120, "sillHeight": 90 }
+  ],
   "furnitures": [
-    { "id": "furniture_1", "type": "sofa", "x": 210, "y": 180, "width": 160, "height": 70, "rotation": 0 },
-    { "id": "furniture_2", "type": "bed", "x": 430, "y": 180, "width": 150, "height": 210, "rotation": 0 },
-    { "id": "furniture_3", "type": "table", "x": 220, "y": 310, "width": 120, "height": 80, "rotation": 0 }
+    { "id": "furniture_1", "type": "sofa", "x": 250, "y": 210, "w": 160, "d": 70, "h": 80, "rotation": 0 },
+    { "id": "furniture_2", "type": "bed", "x": 480, "y": 240, "w": 150, "d": 210, "h": 50, "rotation": 0 },
+    { "id": "furniture_3", "type": "table", "x": 260, "y": 340, "w": 120, "d": 80, "h": 75, "rotation": 0 }
   ],
+  "rooms": [],
   "dimensions": []
 }
