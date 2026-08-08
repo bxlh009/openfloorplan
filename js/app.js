@@ -22,7 +22,6 @@
       case 'r': document.querySelector('[data-tool="room"]').click(); break;
       case 'delete':
         if (State.activeObject) {
-          _pushHistory();
           let arr = null;
           if (State.activeType === 'wall') arr = State.walls;
           if (State.activeType === 'wall-endpoint') arr = State.walls;
@@ -31,8 +30,10 @@
           if (State.activeType === 'furniture') arr = State.furnitures;
           if (State.activeType === 'dimension') arr = State.dimensions;
           if (arr) {
-            const idx = arr.findIndex(o => o.id === State.activeObject);
-            if (idx >= 0) arr.splice(idx, 1);
+            mutateProject(() => {
+              const idx = arr.findIndex(o => o.id === State.activeObject);
+              if (idx >= 0) arr.splice(idx, 1);
+            });
             State.activeObject = null;
             State.activeType = null;
             rebuild3D();

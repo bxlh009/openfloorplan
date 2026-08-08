@@ -17,9 +17,12 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m py_compile serve.py
+      - run: node --test tests/*.test.js
+      - run: node --check js/project.js
       - run: node --check js/state.js
       - run: node --check js/draw2d.js
       - run: node --check js/view3d.js
       - run: node --check js/tools.js
       - run: node --check js/ui.js
       - run: node --check js/app.js
+      - run: node --check js/i18n.js

@@ -107,8 +107,69 @@ body {
 .tool.active { border-color: var(--accent); background: rgba(0,113,227,0.1); }
 .tool .ico { font-size: 16px; }
 
+.style-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.style-card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 5px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 10px;
+  text-align: left;
+}
+
+.style-card:hover { background: var(--bg); color: var(--text); }
+.style-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  color: var(--text);
+}
+
+.style-swatch {
+  display: block;
+  height: 26px;
+  margin-bottom: 4px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, var(--style-wall) 0 52%, var(--style-floor) 52% 100%);
+  border: 1px solid rgba(0,0,0,0.08);
+}
+
+.architecture-swatch {
+  display: block;
+  height: 26px;
+  margin-bottom: 4px;
+  border-radius: 5px;
+  border: 1px solid rgba(0,0,0,0.1);
+  background-color: #eee;
+}
+.architecture-modern { background: linear-gradient(90deg,#30343b 0 8%,#e9edf0 8% 46%,#30343b 46% 52%,#e9edf0 52% 92%,#30343b 92%); }
+.architecture-nordic { background: linear-gradient(90deg,#d4b287 0 10%,#f7f4ed 10% 45%,#d4b287 45% 55%,#f7f4ed 55% 90%,#d4b287 90%); }
+.architecture-japanese { background: repeating-linear-gradient(90deg,#72533b 0 3px,#eee6d5 3px 12px); }
+.architecture-wabi { background: radial-gradient(circle at 30% 45%,#eee5d7 0 28%,#b8a58e 29% 34%,#d7c9b7 35%); }
+.architecture-industrial { background: repeating-linear-gradient(45deg,#32383b 0 4px,#8b969b 4px 12px); }
+.architecture-american { background: linear-gradient(#f3eadf 0 18%,#795438 18% 24%,#f3eadf 24% 76%,#795438 76% 82%,#f3eadf 82%); }
+
 .props { font-size: 12px; }
 .props .hint { color: var(--muted); padding: 8px 0; }
+.selection-banner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  margin-bottom: 8px;
+  padding: 8px;
+  border: 1px solid rgba(0,113,227,0.35);
+  border-radius: 7px;
+  background: rgba(0,113,227,0.08);
+  color: var(--accent);
+}
+.selection-banner strong { color: var(--text); }
+.selection-banner code { grid-column: 1 / -1; color: var(--muted); font-size: 10px; }
 .prop-row {
   display: flex;
   justify-content: space-between;
