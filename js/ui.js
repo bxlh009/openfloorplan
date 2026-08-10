@@ -3,6 +3,65 @@
   const q = String.fromCharCode(34);
   const sq = String.fromCharCode(39);
 
+  function assignProject(data) {
+    State.levels = data.levels; State.activeLevelId = data.activeLevelId;
+    State.walls = data.walls; State.doors = data.doors; State.windows = data.windows;
+    State.rooms = data.rooms; State.furnitures = data.furnitures; State.dimensions = data.dimensions; State.stairs = data.stairs;
+    State.style = data.style; State.architectureStyle = data.architectureStyle; State.sunAngle = data.sunAngle;
+    State.nextId = ProjectModel.getNextObjectId(data);
+  }
+
+  function syncLevelsUI() {
+    const select = document.getElementById('level-select');
+    if (!select) return;
+    select.innerHTML = State.levels.map(level => '<option value="' + level.id + '">' + level.name + '</option>').join('');
+    select.value = State.activeLevelId;
+    const level = State.levels.find(item => item.id === State.activeLevelId) || State.levels[0];
+    const summary = document.getElementById('level-summary');
+    if (summary && level) summary.textContent = t('level.summary')
+      .replace('{elevation}', level.elevation).replace('{height}', level.height).replace('{thickness}', level.floorThickness);
+    document.querySelectorAll('[data-floor-finish]').forEach(button => button.classList.toggle('active', level && button.dataset.floorFinish === level.floorFinish));
+  }
+  window.syncLevelsUI = syncLevelsUI;
+
+  document.getElementById('level-select').addEventListener('change', event => {
+    State.activeLevelId = event.target.value;
+    State.activeObject = null; State.activeType = null;
+    persistLocalDraft(); syncLevelsUI(); requestRedraw(); rebuild3D(); renderProps();
+  });
+  document.getElementById('btn-level-add').addEventListener('click', () => {
+    mutateProject(() => {
+      const sourceLevelId = State.activeLevelId;
+      const id = ProjectModel.getNextLevelId(State);
+      State.levels.push({ ...ProjectModel.DEFAULT_LEVEL, id, name: (State.levels.length + 1) + 'F', elevation: ProjectModel.getNextLevelElevation(State) });
+      State.stairs.filter(stair => stair.levelId === sourceLevelId && !stair.toLevelId).forEach(stair => { stair.toLevelId = id; });
+      State.activeLevelId = id;
+    });
+    syncLevelsUI(); requestRedraw(); rebuild3D();
+  });
+  document.getElementById('btn-level-copy').addEventListener('click', () => {
+    const duplicated = ProjectModel.duplicateLevel(State, State.activeLevelId);
+    mutateProject(() => assignProject(duplicated));
+    syncLevelsUI(); requestRedraw(); rebuild3D();
+  });
+  document.querySelectorAll('[data-floor-finish]').forEach(button => button.addEventListener('click', () => {
+    const level = State.levels.find(item => item.id === State.activeLevelId);
+    if (!level || level.floorFinish === button.dataset.floorFinish) return;
+    mutateProject(() => { level.floorFinish = button.dataset.floorFinish; });
+    syncLevelsUI(); rebuild3D();
+  }));
+  document.querySelectorAll('[data-flow-target]').forEach(button => button.addEventListener('click', () => {
+    document.querySelectorAll('[data-flow-target]').forEach(item => item.classList.toggle('active', item === button));
+    document.getElementById('panel-' + button.dataset.flowTarget)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  syncLevelsUI();
+
+  document.getElementById('snap-toggle').addEventListener('change', event => {
+    State.snapEnabled = event.target.checked;
+    if (!State.snapEnabled) { State.snapGuides = []; State.snapPreview = null; }
+    requestRedraw();
+  });
+
   document.querySelectorAll('[data-tool]').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('[data-tool]').forEach(b => b.classList.remove('active'));
@@ -11,6 +70,7 @@
       State.wallStart = null; State.wallDragging = false; State.wallEnd = null;
       State.activeObject = null; State.activeType = null;
       State.pendingFurniture = null; State.roomStart = null;
+      State.snapGuides = []; State.snapPreview = null;
       if (window._tools && window._tools.resetToolState) window._tools.resetToolState();
       updateToolLabel(); renderProps();
     });
@@ -26,6 +86,34 @@
       document.getElementById('status-info').textContent = t('message.place') + t(spec.labelKey || ('furniture.' + type));
     });
   });
+
+  const furnitureSearch = document.getElementById('furniture-search');
+  document.querySelectorAll('[data-furniture-category]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      State.furnitureCategory = btn.dataset.furnitureCategory;
+      document.querySelectorAll('[data-furniture-category]').forEach(button => {
+        const active = button === btn;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      filterFurnitureCatalog();
+    });
+  });
+  if (furnitureSearch) furnitureSearch.addEventListener('input', filterFurnitureCatalog);
+  function filterFurnitureCatalog() {
+    const buttons = [...document.querySelectorAll('[data-furniture]')];
+    const items = buttons.map(button => ({
+      type: button.dataset.furniture,
+      category: button.dataset.category,
+      label: t('furniture.' + button.dataset.furniture),
+    }));
+    const visibleTypes = new Set(ProjectModel.filterFurnitureCatalog(items, State.furnitureCategory, furnitureSearch?.value).map(item => item.type));
+    buttons.forEach(button => { button.hidden = !visibleTypes.has(button.dataset.furniture); });
+    const empty = document.getElementById('furniture-empty');
+    if (empty) empty.hidden = visibleTypes.size > 0;
+  }
+  window.filterFurnitureCatalog = filterFurnitureCatalog;
+  filterFurnitureCatalog();
 
   document.querySelectorAll('.style-card[data-style]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -84,10 +172,12 @@
       if (view3d) { view3d.style.position = 'relative'; view3d.appendChild(bar); }
     }
     const cutaway = window._view3d ? window._view3d.isCutaway() : true;
+    const wholeBuilding = window._view3d ? window._view3d.getBuildingViewMode() === 'all' : true;
     bar.innerHTML =
       '<span style="font-weight:600;">' + t('control.sun') + '</span>' +
       '<input type="range" min="10" max="89" value="' + State.sunAngle + '" id="sun-angle" style="width:70px;">' +
       '<span id="sun-val" style="width:28px;text-align:right;">' + State.sunAngle + '°</span>' +
+      '<button id="btn-building-view" aria-pressed="' + wholeBuilding + '" style="padding:2px 8px;' + (wholeBuilding ? 'background:#34a853;color:#fff;' : '') + '">' + t(wholeBuilding ? 'control.wholeBuilding' : 'control.activeLevel') + '</button>' +
       '<button id="btn-cutaway" aria-pressed="' + cutaway + '" style="padding:2px 8px;' + (cutaway ? 'background:#0071e3;color:#fff;' : '') + '">' + t(cutaway ? 'control.cutaway' : 'control.exterior') + '</button>' +
       '<button id="btn-walk" style="padding:2px 8px;">' + t('control.walk') + '</button>' +
       '<button id="btn-png" style="padding:2px 8px;">' + t('control.exportPng') + '</button>';
@@ -104,6 +194,10 @@
     };
     document.getElementById('btn-cutaway').onclick = () => {
       if (window._view3d) window._view3d.toggleCutaway();
+      setupControls();
+    };
+    document.getElementById('btn-building-view').onclick = () => {
+      if (window._view3d) window._view3d.toggleBuildingViewMode();
       setupControls();
     };
     document.getElementById('btn-walk').onclick = (e) => {
@@ -178,11 +272,14 @@
   document.getElementById('btn-new').addEventListener('click', () => {
     if (!confirm(t('prompt.new'))) return;
     mutateProject(() => {
+      State.levels = [{ ...ProjectModel.DEFAULT_LEVEL }]; State.activeLevelId = ProjectModel.DEFAULT_LEVEL.id;
       State.walls = []; State.doors = []; State.windows = []; State.rooms = []; State.furnitures = []; State.dimensions = [];
+      State.stairs = [];
       State.activeObject = null; State.activeType = null; State.pendingFurniture = null; State.roomStart = null;
       State.panX = 0; State.panY = 0; State.zoom = 1;
     });
-    rebuild3D(); renderProps();
+    syncLevelsUI(); rebuild3D(); renderProps();
+    document.getElementById('status-info').textContent = t('status.newProject');
   });
   document.getElementById('btn-save').addEventListener('click', saveProject);
   document.getElementById('btn-load').addEventListener('click', () => document.getElementById('file-load').click());
@@ -194,6 +291,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'home-' + new Date().toISOString().slice(0,10) + '.json'; a.click();
     URL.revokeObjectURL(url);
+    document.getElementById('status-info').textContent = t('status.backupExported');
   }
   function loadProject(e) {
     const file = e.target.files[0]; if (!file) return;
@@ -202,24 +300,19 @@
       try {
         const data = ProjectModel.normalizeProject(JSON.parse(reader.result));
         mutateProject(() => {
-          State.walls = data.walls; State.doors = data.doors; State.windows = data.windows;
-          State.rooms = data.rooms; State.furnitures = data.furnitures; State.dimensions = data.dimensions;
-          State.style = data.style; State.architectureStyle = data.architectureStyle; State.sunAngle = data.sunAngle;
-          const ids = [...State.walls, ...State.doors, ...State.windows, ...State.rooms, ...State.furnitures, ...State.dimensions]
-            .map(item => Number.parseInt(String(item.id || '').split('_').pop(), 10))
-            .filter(Number.isFinite);
-          State.nextId = Math.max(0, ...ids) + 1;
+          assignProject(data);
         });
         State.activeObject = null; State.activeType = null;
-        syncStyleUI(); syncArchitectureUI(); renderProps(); requestRedraw();
+        syncStyleUI(); syncArchitectureUI(); syncLevelsUI(); renderProps(); requestRedraw();
         rebuild3D(); if (window._view3d) { window._view3d.setSunAngle(State.sunAngle); window._view3d.fitHome(); }
+        document.getElementById('status-info').textContent = t('status.loadedProject');
       } catch (err) { alert(t('error.load') + err.message); }
     };
     reader.readAsText(file); e.target.value = '';
   }
 
   function updateToolLabel() {
-    const map = { select: 'tool.select', wall: 'tool.wall', door: 'tool.door', window: 'tool.window', room: 'tool.room', dimension: 'tool.dimension' };
+    const map = { select: 'tool.select', wall: 'tool.wall', door: 'tool.door', window: 'tool.window', room: 'tool.room', dimension: 'tool.dimension', stair: 'tool.stair' };
     const el = document.getElementById('status-tool');
     if (el) el.textContent = t('status.tool') + ': ' + (map[State.selectedTool] ? t(map[State.selectedTool]) : State.selectedTool);
   }
@@ -234,10 +327,11 @@
     if (type === "door") obj = State.doors.find(w => w.id === State.activeObject);
     if (type === "window") obj = State.windows.find(w => w.id === State.activeObject);
     if (type === "wall-endpoint") obj = State.walls.find(w => w.id === State.activeObject);
+    if (type === "stair") obj = State.stairs.find(w => w.id === State.activeObject);
     if (!obj) { box.innerHTML = '<p class="hint">' + t('hint.selectObject') + '</p>'; return; }
     const selectedName = type === 'furniture'
       ? t(FURNITURE_DEFS[obj.type]?.labelKey || ('furniture.' + obj.type))
-      : t('object.' + (type === 'wall-endpoint' ? 'wall' : type));
+      : t(type === 'stair' ? 'tool.stair' : ('object.' + (type === 'wall-endpoint' ? 'wall' : type)));
     let html = '<div class="selection-banner"><span>' + t('status.selected') + '</span><strong>' + selectedName + '</strong><code>' + obj.id + '</code></div>';
     if (type === "wall" || type === "wall-endpoint") {
       const length = Math.hypot(obj.x2 - obj.x1, obj.y2 - obj.y1);
@@ -266,11 +360,16 @@
       html += propNum("prop.sillHeight", (obj.sillHeight || 90).toFixed(0), 0, 220, null, 5);
       const wall = State.walls.find(item => item.id === obj.wallId);
       if (wall) html += propNum("prop.position", ProjectModel.getOpeningOffset(obj, wall).toFixed(0), obj.width / 2, Math.max(obj.width / 2, Math.hypot(wall.x2-wall.x1, wall.y2-wall.y1)-obj.width/2), null, 5);
+    } else if (type === 'stair') {
+      html += propNum('prop.width', obj.width, 60, 300, null, 5);
+      html += propNum('prop.length', obj.length, 120, 800, null, 10);
+      html += propNum('prop.steps', obj.stepCount, 2, 40, null, 1);
+      html += propNum('prop.rotation', ((obj.rotation || 0) * 180 / Math.PI).toFixed(0), 0, 360);
     }
     html += '<button id="btn-del" style="margin-top:8px;padding:4px 8px;background:#ff3b30;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;width:100%;">' + t('action.delete') + '</button>';
     box.innerHTML = html;
     document.getElementById("btn-del").addEventListener("click", () => {
-      const arr = (type === "wall" || type === "wall-endpoint") ? State.walls : type === "door" ? State.doors : type === "window" ? State.windows : State.furnitures;
+      const arr = (type === "wall" || type === "wall-endpoint") ? State.walls : type === "door" ? State.doors : type === "window" ? State.windows : type === 'stair' ? State.stairs : State.furnitures;
       mutateProject(() => {
         const idx = arr.findIndex(o => o.id === State.activeObject);
         if (idx >= 0) arr.splice(idx, 1);
@@ -301,6 +400,7 @@
           const furniture = State.furnitures.find(item => item.id === State.activeObject);
           const door = State.doors.find(item => item.id === State.activeObject);
           const win = State.windows.find(item => item.id === State.activeObject);
+          const stair = State.stairs.find(item => item.id === State.activeObject);
           if (label === "prop.length" && wall) { const a = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1); wall.x2 = wall.x1 + Math.cos(a) * v; wall.y2 = wall.y1 + Math.sin(a) * v; }
           if (label === "prop.angle" && wall) { const len = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1); const a = v * Math.PI / 180; wall.x2 = wall.x1 + Math.cos(a) * len; wall.y2 = wall.y1 + Math.sin(a) * len; }
           if (label === "prop.thickness" && wall) wall.thickness = v;
@@ -309,6 +409,10 @@
           if (label === "prop.width") { if (furniture) furniture.w = v; if (door) door.width = v; if (win) win.width = v; }
           if (label === "prop.depth" && furniture) furniture.d = v;
           if (label === "prop.rotation" && furniture) furniture.rotation = v * Math.PI / 180;
+          if (label === 'prop.width' && stair) stair.width = v;
+          if (label === 'prop.length' && stair) stair.length = v;
+          if (label === 'prop.steps' && stair) stair.stepCount = Math.round(v);
+          if (label === 'prop.rotation' && stair) stair.rotation = v * Math.PI / 180;
           if (label === "prop.openAngle" && door) door.openAngle = v;
           if (label === "prop.sillHeight" && win) win.sillHeight = v;
           if (label === "prop.position" && (door || win)) {

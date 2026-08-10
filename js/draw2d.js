@@ -235,6 +235,56 @@
     ctx.restore();
   }
 
+  function drawStair(stair) {
+    const p = toScreen(stair.x, stair.y);
+    const width = stair.width * State.zoom;
+    const length = stair.length * State.zoom;
+    const steps = Math.max(2, Math.round(stair.stepCount || 16));
+    ctx.save();
+    ctx.scale(dpr, dpr); ctx.translate(p.x, p.y); ctx.rotate(stair.rotation || 0);
+    ctx.fillStyle = 'rgba(177,143,101,.16)'; ctx.strokeStyle = State.activeType === 'stair' && State.activeObject === stair.id ? '#0071e3' : '#765638';
+    ctx.lineWidth = State.activeType === 'stair' && State.activeObject === stair.id ? 3 : 1.5;
+    ctx.fillRect(-width / 2, -length / 2, width, length); ctx.strokeRect(-width / 2, -length / 2, width, length);
+    ctx.lineWidth = 1;
+    for (let index = 1; index < steps; index += 1) {
+      const y = -length / 2 + length * index / steps;
+      ctx.beginPath(); ctx.moveTo(-width / 2, y); ctx.lineTo(width / 2, y); ctx.stroke();
+    }
+    ctx.fillStyle = '#765638'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(t('tool.stair') + ' ↑', 0, 4);
+    ctx.restore();
+  }
+
+  function drawSnapFeedback() {
+    if (!State.snapEnabled) return;
+    const width = canvas.width / dpr;
+    const height = canvas.height / dpr;
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.strokeStyle = '#ff2d92'; ctx.fillStyle = '#ff2d92'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+    for (const guide of State.snapGuides || []) {
+      ctx.beginPath();
+      if (guide.type === 'x') {
+        const x = toScreen(guide.value, 0).x; ctx.moveTo(x, 0); ctx.lineTo(x, height);
+      } else if (guide.type === 'y') {
+        const y = toScreen(0, guide.value).y; ctx.moveTo(0, y); ctx.lineTo(width, y);
+      } else if (guide.type === 'wall') {
+        const a = toScreen(guide.x1, guide.y1); const b = toScreen(guide.x2, guide.y2);
+        ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      }
+      ctx.stroke();
+    }
+    const preview = State.snapPreview;
+    if (preview) {
+      const p = toScreen(preview.x, preview.y);
+      const w = preview.w * State.zoom; const h = preview.d * State.zoom;
+      ctx.fillStyle = 'rgba(255,45,146,.10)'; ctx.strokeStyle = '#ff2d92'; ctx.lineWidth = 2;
+      ctx.fillRect(p.x - w / 2, p.y - h / 2, w, h); ctx.strokeRect(p.x - w / 2, p.y - h / 2, w, h);
+      ctx.setLineDash([]); ctx.fillStyle = '#ff2d92'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('⌁ ' + preview.label, p.x, p.y + 4);
+    }
+    ctx.restore();
+  }
+
   function drawDimensionPreview() {
     if (State.selectedTool !== 'dimension' || !State.mouseWorld) return;
     const end = toScreen(State.mouseWorld.x, State.mouseWorld.y);
@@ -366,11 +416,13 @@
     drawGrid();
 
     ctx.save();
-    State.walls.forEach(drawWall);
-    State.windows.forEach(drawWindow);
-    State.doors.forEach(drawDoor);
-    State.furnitures.forEach(drawFurniture);
-    State.dimensions.forEach(drawDimension);
+    activeLevelItems(State.walls).forEach(drawWall);
+    activeLevelItems(State.windows).forEach(drawWindow);
+    activeLevelItems(State.doors).forEach(drawDoor);
+    activeLevelItems(State.furnitures).forEach(drawFurniture);
+    activeLevelItems(State.stairs).forEach(drawStair);
+    activeLevelItems(State.dimensions).forEach(drawDimension);
+    drawSnapFeedback();
     drawDimensionPreview();
     drawLiveWallPreview();
     drawRoomPreview();

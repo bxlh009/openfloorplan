@@ -1,10 +1,13 @@
 const State = {
+  levels: [{ ...ProjectModel.DEFAULT_LEVEL }],
+  activeLevelId: ProjectModel.DEFAULT_LEVEL.id,
   walls: [],
   doors: [],
   windows: [],
   rooms: [],
   furnitures: [],
   dimensions: [],
+  stairs: [],
 
   selectedTool: 'select',
   activeObject: null,
@@ -21,6 +24,8 @@ const State = {
   wallEnd: null,
   dimensionStart: null,
   snapEnabled: true,
+  snapGuides: [],
+  snapPreview: null,
   showDimensions: true,
   gridSize: 50,
 
@@ -39,19 +44,23 @@ const State = {
 
 function snapshot() {
   return JSON.stringify({
+    levels: State.levels, activeLevelId: State.activeLevelId,
     walls: State.walls, doors: State.doors, windows: State.windows,
-    rooms: State.rooms, furnitures: State.furnitures, dimensions: State.dimensions,
+    rooms: State.rooms, furnitures: State.furnitures, dimensions: State.dimensions, stairs: State.stairs,
     nextId: State.nextId, style: State.style, architectureStyle: State.architectureStyle, sunAngle: State.sunAngle,
   });
 }
 function _restore(json) {
   const data = JSON.parse(json);
+  State.levels = data.levels || [{ ...ProjectModel.DEFAULT_LEVEL }];
+  State.activeLevelId = data.activeLevelId || State.levels[0].id;
   State.walls = data.walls;
   State.doors = data.doors;
   State.windows = data.windows;
   State.rooms = data.rooms;
   State.furnitures = data.furnitures;
   State.dimensions = data.dimensions;
+  State.stairs = data.stairs || [];
   State.nextId = data.nextId;
   State.style = data.style || ProjectModel.DEFAULT_STYLE;
   State.architectureStyle = data.architectureStyle || ProjectModel.DEFAULT_ARCHITECTURE_STYLE;
@@ -63,18 +72,42 @@ function _restore(json) {
   if (window.renderProps) window.renderProps();
   if (window.syncStyleUI) window.syncStyleUI();
   if (window.syncArchitectureUI) window.syncArchitectureUI();
+  if (window.syncLevelsUI) window.syncLevelsUI();
 }
 
 const _history = ProjectModel.createHistory({ capture: snapshot, restore: _restore });
 function beginHistory() { return _history.begin(); }
-function commitHistory(before) { return _history.commit(before); }
+function localStorageOrNull() {
+  try { return window.localStorage; } catch (_) { return null; }
+}
+function persistLocalDraft() {
+  const storage = localStorageOrNull();
+  return storage ? ProjectModel.saveLocalDraft(storage, State) : false;
+}
+function restoreLocalDraft() {
+  const storage = localStorageOrNull();
+  const data = storage ? ProjectModel.loadLocalDraft(storage) : null;
+  if (!data) return false;
+  State.walls = data.walls; State.doors = data.doors; State.windows = data.windows;
+  State.rooms = data.rooms; State.furnitures = data.furnitures; State.dimensions = data.dimensions; State.stairs = data.stairs;
+  State.levels = data.levels; State.activeLevelId = data.activeLevelId;
+  State.style = data.style; State.architectureStyle = data.architectureStyle; State.sunAngle = data.sunAngle;
+  State.nextId = ProjectModel.getNextObjectId(data);
+  _history.clear();
+  return true;
+}
+function commitHistory(before) {
+  const committed = _history.commit(before);
+  if (committed) persistLocalDraft();
+  return committed;
+}
 function mutateProject(mutator) {
   const before = beginHistory();
   mutator();
   return commitHistory(before);
 }
-function undo() { return _history.undo(); }
-function redo() { return _history.redo(); }
+function undo() { const changed = _history.undo(); if (changed) persistLocalDraft(); return changed; }
+function redo() { const changed = _history.redo(); if (changed) persistLocalDraft(); return changed; }
 
 // ---- Copy/Paste ----
 let _clipboard = null;
@@ -85,6 +118,7 @@ function copySelection() {
   else if (State.activeType === 'door') arr = State.doors;
   else if (State.activeType === 'window') arr = State.windows;
   else if (State.activeType === 'furniture') arr = State.furnitures;
+  else if (State.activeType === 'stair') arr = State.stairs;
   if (!arr) return;
   const obj = arr.find(o => o.id === State.activeObject);
   if (obj) _clipboard = { kind: State.activeType, item: JSON.parse(JSON.stringify(obj)) };
@@ -99,6 +133,7 @@ function pasteSelection() {
     if (Number.isFinite(obj.y)) obj.y += 50;
     if (obj.x1 != null) { obj.x1 += 50; obj.x2 += 50; obj.y1 += 50; obj.y2 += 50; }
     if (kind === 'furniture') State.furnitures.push(obj);
+    else if (kind === 'stair') State.stairs.push(obj);
     else if (kind === 'door') State.doors.push(obj);
     else if (kind === 'window') State.windows.push(obj);
     else State.walls.push(obj);
@@ -111,6 +146,9 @@ function pasteSelection() {
 }
 
 function genId() { return 'obj_' + (State.nextId++); }
+
+function isOnActiveLevel(item) { return !item || !item.levelId || item.levelId === State.activeLevelId; }
+function activeLevelItems(items) { return (items || []).filter(isOnActiveLevel); }
 
 function setState(patch) {
   Object.assign(State, patch);

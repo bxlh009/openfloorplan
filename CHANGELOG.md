@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- Add an eight-step house-design workflow from project setup through review and export.
+- Upgrade projects to JSON v3 with migratable levels, active-level isolation, add/switch/duplicate controls and safe wall-opening remapping.
+- Add straight stairs as architectural circulation objects with 2D/3D geometry and adjacent-level relationships.
+- Add per-level wood, tile and microcement floor finishes, plus an explicit concept-design safety boundary.
+- Add whole-building 3D mode that stacks every level at its real elevation, with an active-level focus toggle and full-height camera framing.
+- Add optional wall, object-edge/center and nearby-grid snapping for furniture and stairs across 2D placement, 2D dragging and 3D dragging, with visible guides.
+
+- Automatically save committed edits in browser storage and restore the latest valid draft on the next visit.
+- Ignore and remove damaged local drafts without blocking the editor; keep JSON export as the portable backup.
+- Build floor meshes from enclosed wall faces so L-shaped plans no longer receive a rectangular floor across exterior space.
+- Add bilingual furniture search, room-based categories, and an explicit empty result state.
+- Clarify local autosave versus portable JSON backup and show visible new/load/export status feedback.
+
 ## 0.4.1 - 2026-08-07
 
 - Require a double-click to select furniture in 3D.

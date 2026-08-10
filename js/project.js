@@ -5,7 +5,9 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const CURRENT_VERSION = 2;
+  const CURRENT_VERSION = 3;
+  const LOCAL_DRAFT_KEY = 'openfloorplan-project-v2';
+  const DEFAULT_LEVEL = { id: 'level_1', name: '1F', elevation: 0, floorThickness: 20, height: 280, floorFinish: 'wood' };
   const DEFAULT_STYLE = 'modern';
   const DEFAULT_ARCHITECTURE_STYLE = 'modern';
   const FURNITURE_DEFAULTS = {
@@ -76,6 +78,18 @@
     };
   }
 
+  function normalizeLevel(level, index) {
+    return {
+      ...level,
+      id: String(level.id || ('level_' + (index + 1))),
+      name: String(level.name || ((index + 1) + 'F')),
+      elevation: finiteNumber(level.elevation, index * 300),
+      floorThickness: Math.max(1, finiteNumber(level.floorThickness, 20)),
+      height: Math.max(100, finiteNumber(level.height, 280)),
+      floorFinish: ['wood', 'tile', 'concrete'].includes(level.floorFinish) ? level.floorFinish : 'wood',
+    };
+  }
+
   function collection(input, key) {
     if (input[key] == null) return [];
     if (!Array.isArray(input[key])) throw new Error(key + ' must be an array.');
@@ -86,23 +100,40 @@
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
       throw new Error('Project data must be an object.');
     }
+    const levels = (input.levels == null ? [DEFAULT_LEVEL] : collection(input, 'levels')).map(normalizeLevel);
+    if (!levels.length) levels.push({ ...DEFAULT_LEVEL });
+    const levelIds = new Set(levels.map(level => level.id));
+    const fallbackLevelId = levels[0].id;
+    const activeLevelId = levelIds.has(input.activeLevelId) ? input.activeLevelId : fallbackLevelId;
+    const withLevel = item => ({ ...item, levelId: levelIds.has(item.levelId) ? item.levelId : fallbackLevelId });
+    const walls = collection(input, 'walls').map(wall => withLevel({ thickness: 20, height: 280, ...wall }));
+    const wallLevels = new Map(walls.map(wall => [wall.id, wall.levelId]));
+    const withOpeningLevel = item => ({ ...item, levelId: levelIds.has(item.levelId) ? item.levelId : (wallLevels.get(item.wallId) || fallbackLevelId) });
     return {
       version: CURRENT_VERSION,
+      levels,
+      activeLevelId,
       style: Object.hasOwn(STYLE_PRESETS, input.style) ? input.style : DEFAULT_STYLE,
       architectureStyle: Object.hasOwn(ARCHITECTURE_PRESETS, input.architectureStyle) ? input.architectureStyle : DEFAULT_ARCHITECTURE_STYLE,
       sunAngle: finiteNumber(input.sunAngle, 60),
-      walls: collection(input, 'walls').map(wall => ({ thickness: 20, height: 280, ...wall })),
-      doors: collection(input, 'doors').map(door => ({ ...door })),
-      windows: collection(input, 'windows').map(win => ({ ...win })),
-      rooms: collection(input, 'rooms').map(room => ({ ...room })),
-      furnitures: collection(input, 'furnitures').map(normalizeFurniture),
-      dimensions: collection(input, 'dimensions').map(dimension => ({ ...dimension })),
+      walls,
+      doors: collection(input, 'doors').map(withOpeningLevel),
+      windows: collection(input, 'windows').map(withOpeningLevel),
+      rooms: collection(input, 'rooms').map(withLevel),
+      furnitures: collection(input, 'furnitures').map(item => withLevel(normalizeFurniture(item))),
+      dimensions: collection(input, 'dimensions').map(withLevel),
+      stairs: collection(input, 'stairs').map(stair => withLevel({
+        width: 100, length: 300, stepCount: 16, rotation: 0, ...stair,
+        toLevelId: levelIds.has(stair.toLevelId) ? stair.toLevelId : null,
+      })),
     };
   }
 
   function serializeProject(state) {
     return normalizeProject({
       version: CURRENT_VERSION,
+      levels: state.levels,
+      activeLevelId: state.activeLevelId,
       style: state.style,
       architectureStyle: state.architectureStyle,
       sunAngle: state.sunAngle,
@@ -112,7 +143,163 @@
       rooms: state.rooms,
       furnitures: state.furnitures,
       dimensions: state.dimensions,
+      stairs: state.stairs,
     });
+  }
+
+  function saveLocalDraft(storage, state) {
+    try {
+      storage.setItem(LOCAL_DRAFT_KEY, JSON.stringify(serializeProject(state)));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function loadLocalDraft(storage) {
+    try {
+      const json = storage.getItem(LOCAL_DRAFT_KEY);
+      if (!json) return null;
+      return normalizeProject(JSON.parse(json));
+    } catch (_) {
+      try { storage.removeItem(LOCAL_DRAFT_KEY); } catch (_) { /* storage unavailable */ }
+      return null;
+    }
+  }
+
+  function getNextObjectId(project) {
+    const ids = ['walls', 'doors', 'windows', 'rooms', 'furnitures', 'dimensions', 'stairs']
+      .flatMap(key => Array.isArray(project[key]) ? project[key] : [])
+      .map(item => Number.parseInt(String(item.id || '').split('_').pop(), 10))
+      .filter(Number.isFinite);
+    return Math.max(0, ...ids) + 1;
+  }
+
+  function getNextLevelId(project) {
+    const ids = (project.levels || []).map(level => Number.parseInt(String(level.id).split('_').pop(), 10)).filter(Number.isFinite);
+    return 'level_' + (Math.max(0, ...ids) + 1);
+  }
+
+  function getNextLevelElevation(project) {
+    return Math.max(...(project.levels || [DEFAULT_LEVEL]).map(level => finiteNumber(level.elevation, 0) + finiteNumber(level.height, 280) + finiteNumber(level.floorThickness, 20)));
+  }
+
+  function duplicateLevel(project, sourceLevelId) {
+    const normalized = normalizeProject(project);
+    const source = normalized.levels.find(level => level.id === sourceLevelId);
+    if (!source) throw new Error('Source level not found.');
+    const levelId = getNextLevelId(normalized);
+    const level = { ...source, id: levelId, name: (normalized.levels.length + 1) + 'F', elevation: getNextLevelElevation(normalized) };
+    const next = JSON.parse(JSON.stringify(normalized));
+    next.levels.push(level);
+    const idMap = new Map();
+    let nextId = getNextObjectId(next);
+    const cloneCollection = key => {
+      const clones = normalized[key].filter(item => item.levelId === sourceLevelId).map(item => {
+        const id = 'obj_' + nextId++;
+        idMap.set(item.id, id);
+        return { ...item, id, levelId };
+      });
+      next[key].push(...clones);
+    };
+    ['walls', 'rooms', 'furnitures', 'dimensions'].forEach(cloneCollection);
+    for (const key of ['doors', 'windows']) {
+      const clones = normalized[key].filter(item => item.levelId === sourceLevelId).map(item => ({
+        ...item, id: 'obj_' + nextId++, levelId, wallId: idMap.get(item.wallId) || item.wallId,
+      }));
+      next[key].push(...clones);
+    }
+    next.activeLevelId = levelId;
+    return normalizeProject(next);
+  }
+
+  function computeFloorPolygons(walls) {
+    const epsilon = 0.000001;
+    const pointKey = point => point.x.toFixed(6) + ',' + point.y.toFixed(6);
+    const points = new Map();
+    for (const wall of Array.isArray(walls) ? walls : []) {
+      for (const point of [
+        { x: finiteNumber(wall.x1, 0), y: finiteNumber(wall.y1, 0) },
+        { x: finiteNumber(wall.x2, 0), y: finiteNumber(wall.y2, 0) },
+      ]) points.set(pointKey(point), point);
+    }
+
+    const edges = new Map();
+    for (const wall of Array.isArray(walls) ? walls : []) {
+      const start = { x: finiteNumber(wall.x1, 0), y: finiteNumber(wall.y1, 0) };
+      const end = { x: finiteNumber(wall.x2, 0), y: finiteNumber(wall.y2, 0) };
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const lengthSquared = dx * dx + dy * dy;
+      if (lengthSquared <= epsilon) continue;
+      const cuts = [...points.values()].map(point => {
+        const px = point.x - start.x;
+        const py = point.y - start.y;
+        const cross = Math.abs(px * dy - py * dx);
+        const t = (px * dx + py * dy) / lengthSquared;
+        return cross <= epsilon * Math.sqrt(lengthSquared) && t >= -epsilon && t <= 1 + epsilon ? Math.max(0, Math.min(1, t)) : null;
+      }).filter(value => value != null).sort((a, b) => a - b);
+      const uniqueCuts = cuts.filter((value, index) => index === 0 || Math.abs(value - cuts[index - 1]) > epsilon);
+      for (let index = 0; index < uniqueCuts.length - 1; index += 1) {
+        const a = { x: start.x + dx * uniqueCuts[index], y: start.y + dy * uniqueCuts[index] };
+        const b = { x: start.x + dx * uniqueCuts[index + 1], y: start.y + dy * uniqueCuts[index + 1] };
+        const aKey = pointKey(a);
+        const bKey = pointKey(b);
+        if (aKey === bKey) continue;
+        points.set(aKey, a); points.set(bKey, b);
+        const edgeKey = [aKey, bKey].sort().join('|');
+        edges.set(edgeKey, [aKey, bKey]);
+      }
+    }
+
+    const neighbors = new Map();
+    function connect(a, b) {
+      if (!neighbors.has(a)) neighbors.set(a, new Set());
+      neighbors.get(a).add(b);
+    }
+    for (const [a, b] of edges.values()) { connect(a, b); connect(b, a); }
+    const sortedNeighbors = new Map([...neighbors].map(([key, values]) => {
+      const origin = points.get(key);
+      return [key, [...values].sort((a, b) => {
+        const pointA = points.get(a); const pointB = points.get(b);
+        return Math.atan2(pointA.y - origin.y, pointA.x - origin.x)
+          - Math.atan2(pointB.y - origin.y, pointB.x - origin.x);
+      })];
+    }));
+
+    const visited = new Set();
+    const faces = [];
+    const halfEdgeKey = (a, b) => a + '>' + b;
+    for (const [edgeA, edgeB] of edges.values()) {
+      for (const [startA, startB] of [[edgeA, edgeB], [edgeB, edgeA]]) {
+        if (visited.has(halfEdgeKey(startA, startB))) continue;
+        const path = [];
+        let a = startA;
+        let b = startB;
+        let closed = false;
+        for (let step = 0; step <= edges.size * 2; step += 1) {
+          const directed = halfEdgeKey(a, b);
+          if (visited.has(directed)) break;
+          visited.add(directed);
+          path.push(a);
+          const options = sortedNeighbors.get(b) || [];
+          const incomingIndex = options.indexOf(a);
+          if (incomingIndex < 0 || !options.length) break;
+          const next = options[(incomingIndex - 1 + options.length) % options.length];
+          a = b;
+          b = next;
+          if (a === startA && b === startB) { closed = true; break; }
+        }
+        if (!closed || path.length < 3) continue;
+        const polygon = path.map(key => points.get(key));
+        const signedArea = polygon.reduce((sum, point, index) => {
+          const next = polygon[(index + 1) % polygon.length];
+          return sum + point.x * next.y - next.x * point.y;
+        }, 0) / 2;
+        if (signedArea > epsilon) faces.push(polygon);
+      }
+    }
+    return faces;
   }
 
   function createHistory({ capture, restore, limit = 50 }) {
@@ -292,5 +479,77 @@
       && Math.abs(localY) <= finiteNumber(furniture.d, furniture.h || 0) / 2;
   }
 
-  return { CURRENT_VERSION, DEFAULT_STYLE, DEFAULT_ARCHITECTURE_STYLE, FURNITURE_DEFAULTS, STYLE_PRESETS, ARCHITECTURE_PRESETS, normalizeProject, serializeProject, createHistory, computeWallSegments, computeCutawayWallIds, computeDoorPose, getOpeningOffset, placeOpeningOnWall, hitTestFurniture };
+  function computeObjectSnap(item, options) {
+    const threshold = Math.max(0, finiteNumber(options?.threshold, 12));
+    const rawX = finiteNumber(item?.x, 0);
+    const rawY = finiteNumber(item?.y, 0);
+    const width = Math.max(0, finiteNumber(item?.w, item?.width || 0));
+    const depth = Math.max(0, finiteNumber(item?.d, item?.length || 0));
+    const walls = Array.isArray(options?.walls) ? options.walls : [];
+    const objects = Array.isArray(options?.objects) ? options.objects : [];
+
+    let nearestWall = null;
+    for (const wall of walls) {
+      const x1 = finiteNumber(wall.x1, 0); const y1 = finiteNumber(wall.y1, 0);
+      const dx = finiteNumber(wall.x2, 0) - x1; const dy = finiteNumber(wall.y2, 0) - y1;
+      const length = Math.hypot(dx, dy);
+      if (length < 0.001) continue;
+      const tx = dx / length; const ty = dy / length;
+      const nx = -ty; const ny = tx;
+      const projection = Math.max(0, Math.min(length, (rawX - x1) * tx + (rawY - y1) * ty));
+      const px = x1 + tx * projection; const py = y1 + ty * projection;
+      const support = Math.abs(nx) * width / 2 + Math.abs(ny) * depth / 2 + finiteNumber(wall.thickness, 20) / 2;
+      for (const side of [-1, 1]) {
+        const x = px + nx * support * side; const y = py + ny * support * side;
+        const distance = Math.hypot(x - rawX, y - rawY);
+        if (distance <= threshold && (!nearestWall || distance < nearestWall.distance)) nearestWall = { x, y, distance, wall };
+      }
+    }
+    if (nearestWall) return {
+      x: Number(nearestWall.x.toFixed(6)), y: Number(nearestWall.y.toFixed(6)), kind: 'wall',
+      guides: [{ type: 'wall', x1: nearestWall.wall.x1, y1: nearestWall.wall.y1, x2: nearestWall.wall.x2, y2: nearestWall.wall.y2 }],
+    };
+
+    function snapAxis(raw, size, axis) {
+      let best = null;
+      for (const other of objects) {
+        const otherCenter = finiteNumber(other[axis], 0);
+        const otherSize = Math.max(0, finiteNumber(axis === 'x' ? (other.w ?? other.width) : (other.d ?? other.length), 0));
+        for (const position of [otherCenter, otherCenter + (otherSize + size) / 2, otherCenter - (otherSize + size) / 2]) {
+          const distance = Math.abs(position - raw);
+          if (distance <= threshold && (!best || distance < best.distance)) best = { position, distance, kind: 'object' };
+        }
+      }
+      if (best) return best;
+      const grid = Math.max(0, finiteNumber(options?.gridSize, 0));
+      if (grid > 0) {
+        const position = Math.round(raw / grid) * grid;
+        const distance = Math.abs(position - raw);
+        if (distance <= threshold) return { position, distance, kind: 'grid' };
+      }
+      return { position: raw, distance: Infinity, kind: null };
+    }
+
+    const snapX = snapAxis(rawX, width, 'x');
+    const snapY = snapAxis(rawY, depth, 'y');
+    const guides = [];
+    if (snapX.kind) guides.push({ type: 'x', value: Number(snapX.position.toFixed(6)) });
+    if (snapY.kind) guides.push({ type: 'y', value: Number(snapY.position.toFixed(6)) });
+    return {
+      x: Number(snapX.position.toFixed(6)), y: Number(snapY.position.toFixed(6)),
+      kind: snapX.kind === 'object' || snapY.kind === 'object' ? 'object' : (snapX.kind || snapY.kind), guides,
+    };
+  }
+
+  function filterFurnitureCatalog(items, category, query) {
+    const selectedCategory = category || 'all';
+    const term = String(query || '').trim().toLocaleLowerCase();
+    return items.filter(item => {
+      const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+      const haystack = (String(item.label || '') + ' ' + String(item.type || '')).toLocaleLowerCase();
+      return matchesCategory && (!term || haystack.includes(term));
+    });
+  }
+
+  return { CURRENT_VERSION, LOCAL_DRAFT_KEY, DEFAULT_LEVEL, DEFAULT_STYLE, DEFAULT_ARCHITECTURE_STYLE, FURNITURE_DEFAULTS, STYLE_PRESETS, ARCHITECTURE_PRESETS, normalizeProject, serializeProject, saveLocalDraft, loadLocalDraft, getNextObjectId, getNextLevelId, getNextLevelElevation, duplicateLevel, computeFloorPolygons, createHistory, computeWallSegments, computeCutawayWallIds, computeDoorPose, getOpeningOffset, placeOpeningOnWall, hitTestFurniture, computeObjectSnap, filterFurnitureCatalog };
 });

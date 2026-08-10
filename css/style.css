@@ -63,8 +63,20 @@ body {
 
 .layout {
   display: flex;
-  height: calc(100vh - 48px);
+  height: calc(100vh - 90px);
 }
+
+.build-flow { height: 42px; display: flex; align-items: center; gap: 5px; overflow-x: auto; padding: 5px 12px; background: #f8f8fa; border-bottom: 1px solid var(--border); }
+.build-flow button { flex: 0 0 auto; border: 1px solid transparent; background: transparent; color: var(--muted); border-radius: 999px; padding: 5px 9px; font-size: 11px; cursor: pointer; }
+.build-flow button:hover, .build-flow button.active { color: var(--accent); border-color: rgba(0,113,227,.25); background: rgba(0,113,227,.08); }
+.build-note { padding: 9px; border-radius: 8px; background: #fff8e8; border: 1px solid #f0d58b; }
+.build-note p { color: #6f5620; font-size: 11px; line-height: 1.5; }
+.level-row { display: grid; grid-template-columns: 1fr 32px 32px; gap: 5px; }
+.level-row select, .level-row button { min-height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.level-summary { margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.floor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.floor-grid button { border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--muted); padding: 8px 3px; font-size: 10px; cursor: pointer; }
+.floor-grid button.active { color: var(--accent); border-color: var(--accent); background: rgba(0,113,227,.08); }
 
 .sidebar {
   width: 240px;
@@ -106,6 +118,24 @@ body {
 .tool:hover { background: var(--bg); }
 .tool.active { border-color: var(--accent); background: rgba(0,113,227,0.1); }
 .tool .ico { font-size: 16px; }
+.autosave-badge { padding: 4px 7px; border-radius: 999px; background: rgba(52,199,89,0.12); color: #237a3b; font-size: 11px; white-space: nowrap; }
+
+.catalog-search {
+  width: 100%;
+  padding: 7px 9px;
+  margin-bottom: 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 12px;
+}
+.snap-toggle { display: flex; align-items: center; gap: 6px; margin: -1px 0 8px; color: var(--muted); font-size: 10px; line-height: 1.3; cursor: pointer; }
+.snap-toggle input { accent-color: var(--accent); }
+.catalog-search:focus { outline: 2px solid rgba(0,113,227,0.22); border-color: var(--accent); }
+.catalog-categories { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 7px; scrollbar-width: thin; }
+.catalog-category { flex: 0 0 auto; padding: 4px 7px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 11px; cursor: pointer; }
+.catalog-category.active { border-color: var(--accent); background: rgba(0,113,227,0.1); color: var(--accent); }
+.catalog-empty { margin: 10px 0 0; padding: 12px 8px; border: 1px dashed var(--border); border-radius: 6px; color: var(--muted); font-size: 12px; text-align: center; }
 
 .style-grid {
   display: grid;

@@ -29,6 +29,7 @@
           if (State.activeType === 'window') arr = State.windows;
           if (State.activeType === 'furniture') arr = State.furnitures;
           if (State.activeType === 'dimension') arr = State.dimensions;
+          if (State.activeType === 'stair') arr = State.stairs;
           if (arr) {
             mutateProject(() => {
               const idx = arr.findIndex(o => o.id === State.activeObject);
@@ -44,6 +45,8 @@
       case 'escape':
         State.wallStart = null;
         State.pendingFurniture = null;
+        State.snapGuides = [];
+        State.snapPreview = null;
         State.roomStart = null;
         if (window._tools && window._tools.resetToolState) window._tools.resetToolState();
         State.activeObject = null;
@@ -59,14 +62,21 @@
   });
 
   // Initial state
+  const restoredDraft = restoreLocalDraft();
+  if (restoredDraft) {
+    if (window.syncStyleUI) window.syncStyleUI();
+    if (window.syncArchitectureUI) window.syncArchitectureUI();
+    if (window.renderProps) window.renderProps();
+    requestRedraw();
+  }
   rebuild3D();
-  document.getElementById('status-info').textContent = t('status.shortcuts');
+  document.getElementById('status-info').textContent = t(restoredDraft ? 'status.restored' : 'status.shortcuts');
 })();
 
 function updateToolLabel() {
   const map = {
     select: 'tool.select', wall: 'tool.wall', door: 'tool.door',
-    window: 'tool.window', room: 'tool.room', dimension: 'tool.dimension'
+    window: 'tool.window', room: 'tool.room', dimension: 'tool.dimension', stair: 'tool.stair'
   };
   const el = document.getElementById('status-tool');
   if (el) el.textContent = t('status.tool') + ': ' + (map[State.selectedTool] ? t(map[State.selectedTool]) : State.selectedTool);
