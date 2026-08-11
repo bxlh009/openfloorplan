@@ -82,7 +82,14 @@ function localStorageOrNull() {
 }
 function persistLocalDraft() {
   const storage = localStorageOrNull();
-  return storage ? ProjectModel.saveLocalDraft(storage, State) : false;
+  const saved = Boolean(storage && ProjectModel.saveLocalDraft(storage, State));
+  const badge = document.querySelector('.autosave-badge');
+  if (badge) {
+    badge.dataset.saveState = saved ? 'saved' : 'unavailable';
+    badge.setAttribute('aria-live', 'polite');
+    badge.textContent = t(saved ? 'status.autosaveSaved' : 'status.autosaveUnavailable');
+  }
+  return saved;
 }
 function restoreLocalDraft() {
   const storage = localStorageOrNull();
@@ -108,6 +115,11 @@ function mutateProject(mutator) {
 }
 function undo() { const changed = _history.undo(); if (changed) persistLocalDraft(); return changed; }
 function redo() { const changed = _history.redo(); if (changed) persistLocalDraft(); return changed; }
+
+// A page can be closed or reloaded immediately after an edit. Keep the latest
+// in-memory state as the final save, even when a browser ends the page before
+// the normal edit transaction finishes.
+window.addEventListener('pagehide', () => persistLocalDraft());
 
 // ---- Copy/Paste ----
 let _clipboard = null;
