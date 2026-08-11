@@ -88,6 +88,15 @@ function persistLocalDraft() {
     badge.dataset.saveState = saved ? 'saved' : 'unavailable';
     badge.setAttribute('aria-live', 'polite');
     badge.textContent = t(saved ? 'status.autosaveSaved' : 'status.autosaveUnavailable');
+    badge.title = saved
+      ? [
+        State.levels?.length || 0, '层 ·',
+        State.walls?.length || 0, '墙 ·',
+        State.doors?.length || 0, '门 ·',
+        State.windows?.length || 0, '窗 ·',
+        State.furnitures?.length || 0, '件家具',
+      ].join(' ')
+      : t('status.autosaveUnavailable');
   }
   return saved;
 }
