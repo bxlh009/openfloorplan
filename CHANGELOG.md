@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 - 2026-08-11
+
+- Save the latest in-memory draft when the page is reloaded or closed, covering the final edit boundary in browsers that end a page immediately.
+- Show whether local autosave succeeded and point users to JSON backup when browser storage is unavailable.
+- Add regression coverage for multi-level drafts, wall objects, and level-linked openings.
+
 ## 0.5.0 - 2026-08-11
 
 - Add an eight-step house-design workflow from project setup through review and export.

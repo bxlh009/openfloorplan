@@ -152,6 +152,36 @@ test('local draft round trip restores the latest project without a backend', () 
   assert.equal(ProjectModel.getNextObjectId(ProjectModel.loadLocalDraft(storage)), 9);
 });
 
+test('local draft round trip preserves multiple levels and their objects', () => {
+  const values = new Map();
+  const storage = {
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: key => values.delete(key),
+  };
+  const project = {
+    levels: [
+      { id: 'level_1', name: '1F', elevation: 0, floorThickness: 20, height: 280, floorFinish: 'wood' },
+      { id: 'level_2', name: '2F', elevation: 300, floorThickness: 20, height: 280, floorFinish: 'tile' },
+    ],
+    activeLevelId: 'level_2',
+    walls: [
+      { id: 'obj_1', levelId: 'level_1', x1: 0, y1: 0, x2: 300, y2: 0 },
+      { id: 'obj_2', levelId: 'level_2', x1: 0, y1: 0, x2: 240, y2: 0 },
+    ],
+    doors: [{ id: 'obj_3', levelId: 'level_2', wallId: 'obj_2', x: 120, y: 0, width: 90 }],
+    windows: [], rooms: [], furnitures: [], dimensions: [], stairs: [],
+  };
+
+  assert.equal(ProjectModel.saveLocalDraft(storage, project), true);
+  const restored = ProjectModel.loadLocalDraft(storage);
+  assert.deepEqual(restored.levels, project.levels);
+  assert.equal(restored.activeLevelId, 'level_2');
+  assert.deepEqual(restored.walls.map(wall => wall.levelId), ['level_1', 'level_2']);
+  assert.equal(restored.doors[0].wallId, 'obj_2');
+  assert.equal(restored.doors[0].levelId, 'level_2');
+});
+
 test('a damaged or unavailable local draft is ignored safely', () => {
   let removed = false;
   const damagedStorage = {
