@@ -118,6 +118,19 @@ body {
 .tool:hover { background: var(--bg); }
 .tool.active { border-color: var(--accent); background: rgba(0,113,227,0.1); }
 .tool .ico { font-size: 16px; }
+.selection-action {
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px 8px;
+  border: 1px solid rgba(255,59,48,0.45);
+  border-radius: 6px;
+  background: rgba(255,59,48,0.08);
+  color: #d70015;
+  cursor: pointer;
+  font-size: 12px;
+}
+.selection-action:disabled { opacity: 0.45; cursor: not-allowed; }
+.selection-action:not(:disabled):hover { background: rgba(255,59,48,0.16); }
 .autosave-badge { padding: 4px 7px; border-radius: 999px; background: rgba(52,199,89,0.12); color: #237a3b; font-size: 11px; white-space: nowrap; }
 
 .catalog-search {

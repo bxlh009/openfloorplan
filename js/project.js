@@ -479,6 +479,78 @@
       && Math.abs(localY) <= finiteNumber(furniture.d, furniture.h || 0) / 2;
   }
 
+  function normalizeSelectionRect(rect) {
+    const start = rect?.start || rect?.a || rect;
+    const end = rect?.end || rect?.b || rect;
+    const x1 = finiteNumber(start?.x, 0);
+    const y1 = finiteNumber(start?.y, 0);
+    const x2 = finiteNumber(end?.x, x1);
+    const y2 = finiteNumber(end?.y, y1);
+    return { left: Math.min(x1, x2), top: Math.min(y1, y2), right: Math.max(x1, x2), bottom: Math.max(y1, y2) };
+  }
+
+  function selectionRectContainsPoint(rect, point) {
+    return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
+  }
+
+  function rotatedBoxCorners(item, width, depth) {
+    const x = finiteNumber(item.x, 0);
+    const y = finiteNumber(item.y, 0);
+    const halfWidth = Math.max(0, finiteNumber(width, 0)) / 2;
+    const halfDepth = Math.max(0, finiteNumber(depth, 0)) / 2;
+    const rotation = finiteNumber(item.rotation, 0);
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    return [[-halfWidth, -halfDepth], [halfWidth, -halfDepth], [halfWidth, halfDepth], [-halfWidth, halfDepth]]
+      .map(([localX, localY]) => ({ x: x + localX * cos - localY * sin, y: y + localX * sin + localY * cos }));
+  }
+
+  function selectionRectContainsObject(rect, type, item) {
+    if (type === 'wall' || type === 'dimension') {
+      return selectionRectContainsPoint(rect, { x: finiteNumber(item.x1, 0), y: finiteNumber(item.y1, 0) })
+        && selectionRectContainsPoint(rect, { x: finiteNumber(item.x2, 0), y: finiteNumber(item.y2, 0) });
+    }
+    if (type === 'door' || type === 'window') {
+      return selectionRectContainsPoint(rect, { x: finiteNumber(item.x, 0), y: finiteNumber(item.y, 0) });
+    }
+    if (type === 'furniture') {
+      return rotatedBoxCorners(item, item.w, item.d ?? item.h).every(point => selectionRectContainsPoint(rect, point));
+    }
+    if (type === 'stair') {
+      return rotatedBoxCorners(item, item.width, item.length).every(point => selectionRectContainsPoint(rect, point));
+    }
+    if (Number.isFinite(Number(item.x1)) && Number.isFinite(Number(item.y1))
+      && Number.isFinite(Number(item.x2)) && Number.isFinite(Number(item.y2))) {
+      return selectionRectContainsObject(rect, 'dimension', item);
+    }
+    if (Number.isFinite(Number(item.x)) && Number.isFinite(Number(item.y))) {
+      const width = item.w ?? item.width;
+      const depth = item.d ?? item.length ?? item.h;
+      if (width != null && depth != null) return rotatedBoxCorners(item, width, depth).every(point => selectionRectContainsPoint(rect, point));
+      return selectionRectContainsPoint(rect, item);
+    }
+    return false;
+  }
+
+  function selectObjectsInRect(project, rect, levelId) {
+    const normalizedRect = normalizeSelectionRect(rect);
+    const selected = [];
+    const sameLevel = item => !levelId || !item.levelId || item.levelId === levelId;
+    const add = (type, items) => {
+      for (const item of Array.isArray(items) ? items : []) {
+        if (sameLevel(item) && item.id && selectionRectContainsObject(normalizedRect, type, item)) selected.push({ type, id: item.id });
+      }
+    };
+    add('wall', project?.walls);
+    add('door', project?.doors);
+    add('window', project?.windows);
+    add('room', project?.rooms);
+    add('furniture', project?.furnitures);
+    add('dimension', project?.dimensions);
+    add('stair', project?.stairs);
+    return selected;
+  }
+
   function computeObjectSnap(item, options) {
     const threshold = Math.max(0, finiteNumber(options?.threshold, 12));
     const rawX = finiteNumber(item?.x, 0);
@@ -551,5 +623,5 @@
     });
   }
 
-  return { CURRENT_VERSION, LOCAL_DRAFT_KEY, DEFAULT_LEVEL, DEFAULT_STYLE, DEFAULT_ARCHITECTURE_STYLE, FURNITURE_DEFAULTS, STYLE_PRESETS, ARCHITECTURE_PRESETS, normalizeProject, serializeProject, saveLocalDraft, loadLocalDraft, getNextObjectId, getNextLevelId, getNextLevelElevation, duplicateLevel, computeFloorPolygons, createHistory, computeWallSegments, computeCutawayWallIds, computeDoorPose, getOpeningOffset, placeOpeningOnWall, hitTestFurniture, computeObjectSnap, filterFurnitureCatalog };
+  return { CURRENT_VERSION, LOCAL_DRAFT_KEY, DEFAULT_LEVEL, DEFAULT_STYLE, DEFAULT_ARCHITECTURE_STYLE, FURNITURE_DEFAULTS, STYLE_PRESETS, ARCHITECTURE_PRESETS, normalizeProject, serializeProject, saveLocalDraft, loadLocalDraft, getNextObjectId, getNextLevelId, getNextLevelElevation, duplicateLevel, computeFloorPolygons, createHistory, computeWallSegments, computeCutawayWallIds, computeDoorPose, getOpeningOffset, placeOpeningOnWall, hitTestFurniture, selectObjectsInRect, computeObjectSnap, filterFurnitureCatalog };
 });

@@ -12,6 +12,8 @@ const State = {
   selectedTool: 'select',
   activeObject: null,
   activeType: null,
+  selectedObjects: [],
+  selectionBox: null,
   nextId: 1,
 
   zoom: 1,
@@ -67,6 +69,8 @@ function _restore(json) {
   State.sunAngle = data.sunAngle || 60;
   State.activeObject = null;
   State.activeType = null;
+  State.selectedObjects = [];
+  State.selectionBox = null;
   requestRedraw();
   if (window.rebuild3D) window.rebuild3D();
   if (window.renderProps) window.renderProps();
@@ -111,6 +115,8 @@ function restoreLocalDraft() {
   State.levels = data.levels; State.activeLevelId = data.activeLevelId;
   State.style = data.style; State.architectureStyle = data.architectureStyle; State.sunAngle = data.sunAngle;
   State.nextId = ProjectModel.getNextObjectId(data);
+  State.activeObject = null; State.activeType = null;
+  State.selectedObjects = []; State.selectionBox = null;
   _history.clear();
   updateAutosaveBadge(true);
   return true;
@@ -127,6 +133,76 @@ function mutateProject(mutator) {
 }
 function undo() { const changed = _history.undo(); if (changed) persistLocalDraft(); return changed; }
 function redo() { const changed = _history.redo(); if (changed) persistLocalDraft(); return changed; }
+
+function normalizeSelectionType(type) { return type === 'wall-endpoint' ? 'wall' : type; }
+function getSelectionEntries() {
+  if (Array.isArray(State.selectedObjects) && State.selectedObjects.length) return State.selectedObjects;
+  return State.activeObject ? [{ id: State.activeObject, type: State.activeType }] : [];
+}
+function setSelection(entries) {
+  const unique = new Map();
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    if (!entry?.id || !entry?.type) continue;
+    const key = normalizeSelectionType(entry.type) + ':' + entry.id;
+    if (!unique.has(key)) unique.set(key, { id: entry.id, type: entry.type });
+  }
+  State.selectedObjects = [...unique.values()];
+  if (State.selectedObjects.length === 1) {
+    State.activeObject = State.selectedObjects[0].id;
+    State.activeType = State.selectedObjects[0].type;
+  } else {
+    State.activeObject = null;
+    State.activeType = null;
+  }
+  State.selectionBox = null;
+  if (window.syncSelectionUI) window.syncSelectionUI();
+  if (window.renderProps) window.renderProps();
+  requestRedraw();
+}
+function clearSelection() { setSelection([]); }
+function deleteSelectedObjects() {
+  const entries = getSelectionEntries();
+  if (!entries.length) return 0;
+  const selectedKeys = new Set(entries.map(entry => normalizeSelectionType(entry.type) + ':' + entry.id));
+  const wallIds = new Set(entries.filter(entry => normalizeSelectionType(entry.type) === 'wall').map(entry => entry.id));
+  let deleted = 0;
+  const shouldRemove = (type, item) => selectedKeys.has(type + ':' + item.id);
+  mutateProject(() => {
+    const removeCollection = (key, type) => {
+      const collection = Array.isArray(State[key]) ? State[key] : [];
+      State[key] = collection.filter(item => {
+        const remove = shouldRemove(type, item);
+        if (remove) deleted += 1;
+        return !remove;
+      });
+    };
+    removeCollection('walls', 'wall');
+    for (const key of ['doors', 'windows']) {
+      const type = key === 'doors' ? 'door' : 'window';
+      const collection = Array.isArray(State[key]) ? State[key] : [];
+      State[key] = collection.filter(item => {
+        const remove = shouldRemove(type, item) || wallIds.has(item.wallId);
+        if (remove) deleted += 1;
+        return !remove;
+      });
+    }
+    removeCollection('rooms', 'room');
+    removeCollection('furnitures', 'furniture');
+    removeCollection('dimensions', 'dimension');
+    removeCollection('stairs', 'stair');
+  });
+  clearSelection();
+  if (window.rebuild3D) window.rebuild3D();
+  if (window.renderProps) window.renderProps();
+  if (deleted) {
+    const status = document.getElementById('status-info');
+    if (status) status.textContent = t('message.deleteSelection').replace('{count}', String(deleted));
+  }
+  return deleted;
+}
+window.setSelection = setSelection;
+window.clearSelection = clearSelection;
+window.deleteSelectedObjects = deleteSelectedObjects;
 
 // A page can be closed or reloaded immediately after an edit. Keep the latest
 // in-memory state as the final save, even when a browser ends the page before
@@ -164,6 +240,7 @@ function pasteSelection() {
   });
   State.activeObject = obj.id;
   State.activeType = kind;
+  State.selectedObjects = [{ id: obj.id, type: kind }];
   requestRedraw();
   if (window.rebuild3D) window.rebuild3D();
   if (window.renderProps) window.renderProps();

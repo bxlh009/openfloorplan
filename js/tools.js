@@ -10,6 +10,7 @@
   let wallMouseDown = false;
   let draggedWallEndpoint = null;
   let roomStart = null; // First corner for room tool
+  let marqueeSelecting = false;
 
   // --- Snapping helpers ---
 
@@ -162,6 +163,8 @@
     moveObj = null;
     wallMouseDown = false;
     draggedWallEndpoint = null;
+    marqueeSelecting = false;
+    State.selectionBox = null;
     State.snapGuides = [];
     State.snapPreview = null;
   }
@@ -195,13 +198,11 @@
               x: fx, y: fy, w: spec.w, d: spec.d, h: spec.h, rotation: 0,
             });
           });
-          State.activeObject = furnitureId;
-          State.activeType = 'furniture';
           State.selectedTool = 'select';
           document.querySelectorAll('[data-tool]').forEach(button => button.classList.toggle('active', button.dataset.tool === 'select'));
           document.querySelectorAll('[data-furniture]').forEach(button => button.classList.remove('active'));
           if (window.updateToolLabel) window.updateToolLabel();
-          if (window.renderProps) window.renderProps();
+          setSelection([{ id: furnitureId, type: 'furniture' }]);
           rebuild3D();
         } else {
           document.getElementById('status-info').textContent = t('message.overlap');
@@ -218,8 +219,17 @@
       case 'select': {
         const pick = pickAt(w.x, w.y);
         if (pick) {
-          State.activeObject = pick.id;
-          State.activeType = pick.type;
+          marqueeSelecting = false;
+          if (e.shiftKey) {
+            const current = Array.isArray(State.selectedObjects) ? State.selectedObjects : [];
+            const key = normalizeSelectionType(pick.type) + ':' + pick.id;
+            const next = current.some(entry => normalizeSelectionType(entry.type) + ':' + entry.id === key)
+              ? current.filter(entry => normalizeSelectionType(entry.type) + ':' + entry.id !== key)
+              : [...current, { id: pick.id, type: pick.type }];
+            setSelection(next);
+            break;
+          }
+          setSelection([{ id: pick.id, type: pick.type }]);
           moveStart = { x: w.x, y: w.y };
           moveObj = pick;
           if (pick.type === 'furniture' || pick.type === 'stair') {
@@ -230,8 +240,10 @@
             draggedWallEndpoint = { wall: pick.obj, endpoint: pick.endpoint };
           }
         } else {
-          State.activeObject = null;
-          State.activeType = null;
+          setSelection([]);
+          marqueeSelecting = true;
+          State.selectionBox = { start: { x: w.x, y: w.y }, end: { x: w.x, y: w.y } };
+          document.getElementById('status-info').textContent = t('message.dragSelect');
         }
         renderProps();
         break;
@@ -360,6 +372,14 @@
       return;
     }
 
+    if (marqueeSelecting && State.selectionBox) {
+      State.selectionBox.end = { x: w.x, y: w.y };
+      const count = ProjectModel.selectObjectsInRect(State, State.selectionBox, State.activeLevelId).length;
+      document.getElementById('status-info').textContent = t('message.dragSelect') + (count ? ' · ' + t('status.selectionCount').replace('{count}', String(count)) : '');
+      requestRedraw();
+      return;
+    }
+
     if (State.wallDragging && State.wallStart) {
       const snapPt = findSnapPoint(w.x, w.y);
       let ex = snapPt ? snapPt.x : snapToGrid(w.x, State.gridSize);
@@ -433,6 +453,15 @@
 
   canvas.addEventListener('pointerup', e => {
     isPanning = false;
+    if (marqueeSelecting) {
+      const selection = ProjectModel.selectObjectsInRect(State, State.selectionBox, State.activeLevelId);
+      marqueeSelecting = false;
+      State.selectionBox = null;
+      setSelection(selection);
+      const status = document.getElementById('status-info');
+      if (status) status.textContent = t('status.selectionCount').replace('{count}', String(selection.length));
+      return;
+    }
     if (moveHistory != null) commitHistory(moveHistory);
     moveHistory = null;
     moveStart = null;

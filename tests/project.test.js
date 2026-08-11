@@ -290,6 +290,32 @@ test('furniture hit testing follows its visible rotation', () => {
   assert.equal(ProjectModel.hitTestFurniture(furniture, 45, 0), false);
 });
 
+test('rectangle selection keeps fully contained objects on the active level', () => {
+  const project = {
+    walls: [
+      { id: 'wall_inside', levelId: 'level_1', x1: 0, y1: 0, x2: 300, y2: 0 },
+      { id: 'wall_partial', levelId: 'level_1', x1: 0, y1: 0, x2: 500, y2: 0 },
+      { id: 'wall_other_level', levelId: 'level_2', x1: 0, y1: 0, x2: 200, y2: 0 },
+    ],
+    doors: [{ id: 'door_inside', levelId: 'level_1', x: 150, y: 0 }],
+    windows: [{ id: 'window_outside', levelId: 'level_1', x: 420, y: 0 }],
+    rooms: [],
+    furnitures: [{ id: 'sofa_inside', levelId: 'level_1', x: 150, y: 120, w: 100, d: 60, rotation: 0 }],
+    dimensions: [{ id: 'dimension_inside', levelId: 'level_1', x1: 30, y1: 180, x2: 250, y2: 180 }],
+    stairs: [{ id: 'stair_other_level', levelId: 'level_2', x: 120, y: 120, width: 100, length: 200, rotation: 0 }],
+  };
+
+  assert.deepEqual(
+    ProjectModel.selectObjectsInRect(project, { start: { x: 350, y: 220 }, end: { x: -10, y: -10 } }, 'level_1'),
+    [
+      { type: 'wall', id: 'wall_inside' },
+      { type: 'door', id: 'door_inside' },
+      { type: 'furniture', id: 'sofa_inside' },
+      { type: 'dimension', id: 'dimension_inside' },
+    ],
+  );
+});
+
 test('furniture catalog filters by category and localized search text', () => {
   const items = [
     { type: 'sofa', category: 'living', label: '沙发 Sofa' },

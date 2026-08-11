@@ -9,6 +9,7 @@
     State.rooms = data.rooms; State.furnitures = data.furnitures; State.dimensions = data.dimensions; State.stairs = data.stairs;
     State.style = data.style; State.architectureStyle = data.architectureStyle; State.sunAngle = data.sunAngle;
     State.nextId = ProjectModel.getNextObjectId(data);
+    State.activeObject = null; State.activeType = null; State.selectedObjects = []; State.selectionBox = null;
   }
 
   function syncLevelsUI() {
@@ -26,7 +27,7 @@
 
   document.getElementById('level-select').addEventListener('change', event => {
     State.activeLevelId = event.target.value;
-    State.activeObject = null; State.activeType = null;
+    clearSelection();
     persistLocalDraft(); syncLevelsUI(); requestRedraw(); rebuild3D(); renderProps();
   });
   document.getElementById('btn-level-add').addEventListener('click', () => {
@@ -68,13 +69,15 @@
       btn.classList.add('active');
       State.selectedTool = btn.dataset.tool;
       State.wallStart = null; State.wallDragging = false; State.wallEnd = null;
-      State.activeObject = null; State.activeType = null;
+      clearSelection();
       State.pendingFurniture = null; State.roomStart = null;
       State.snapGuides = []; State.snapPreview = null;
       if (window._tools && window._tools.resetToolState) window._tools.resetToolState();
       updateToolLabel(); renderProps();
     });
   });
+
+  document.getElementById('btn-delete-selection').addEventListener('click', () => deleteSelectedObjects());
 
   document.querySelectorAll('[data-furniture]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -275,7 +278,7 @@
       State.levels = [{ ...ProjectModel.DEFAULT_LEVEL }]; State.activeLevelId = ProjectModel.DEFAULT_LEVEL.id;
       State.walls = []; State.doors = []; State.windows = []; State.rooms = []; State.furnitures = []; State.dimensions = [];
       State.stairs = [];
-      State.activeObject = null; State.activeType = null; State.pendingFurniture = null; State.roomStart = null;
+      clearSelection(); State.pendingFurniture = null; State.roomStart = null;
       State.panX = 0; State.panY = 0; State.zoom = 1;
     });
     syncLevelsUI(); rebuild3D(); renderProps();
@@ -318,8 +321,24 @@
   }
   window.updateToolLabel = updateToolLabel;
 
+  function syncSelectionUI() {
+    const button = document.getElementById('btn-delete-selection');
+    if (!button) return;
+    const count = Array.isArray(State.selectedObjects) ? State.selectedObjects.length : 0;
+    button.disabled = count === 0;
+    button.textContent = count ? t('action.deleteSelection') + ' (' + count + ')' : t('action.deleteSelection');
+    button.title = count ? t('status.selectionCount').replace('{count}', String(count)) : t('action.deleteSelection');
+  }
+  window.syncSelectionUI = syncSelectionUI;
+
   function renderProps() {
     const box = document.getElementById("props");
+    syncSelectionUI();
+    const selectedCount = Array.isArray(State.selectedObjects) ? State.selectedObjects.length : 0;
+    if (selectedCount > 1) {
+      box.innerHTML = '<div class="selection-banner"><span>' + t('status.selected') + '</span><strong>' + t('status.selectionCount').replace('{count}', String(selectedCount)) + '</strong><code>' + t('hint.multiSelection') + '</code></div>';
+      return;
+    }
     if (!State.activeObject) { box.innerHTML = '<p class="hint">' + t('hint.selectObject') + '</p>'; return; }
     let obj = null, type = State.activeType;
     if (type === "wall") obj = State.walls.find(w => w.id === State.activeObject);
@@ -369,12 +388,7 @@
     html += '<button id="btn-del" style="margin-top:8px;padding:4px 8px;background:#ff3b30;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;width:100%;">' + t('action.delete') + '</button>';
     box.innerHTML = html;
     document.getElementById("btn-del").addEventListener("click", () => {
-      const arr = (type === "wall" || type === "wall-endpoint") ? State.walls : type === "door" ? State.doors : type === "window" ? State.windows : type === 'stair' ? State.stairs : State.furnitures;
-      mutateProject(() => {
-        const idx = arr.findIndex(o => o.id === State.activeObject);
-        if (idx >= 0) arr.splice(idx, 1);
-      });
-      State.activeObject = null; State.activeType = null; rebuild3D(); renderProps();
+      deleteSelectedObjects();
     });
     bindPropInputs();
   }

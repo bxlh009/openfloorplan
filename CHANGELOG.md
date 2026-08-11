@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2 - 2026-08-11
+
+- Add rectangle marquee selection on the active level, Shift additive selection, and a one-click/Delete-key removal action.
+- Remove selected walls together with their linked doors and windows, preserving undo and local autosave behavior.
+- Add regression coverage for full-containment selection and active-level isolation.
+
 ## 0.5.1 - 2026-08-11
 
 - Save the latest in-memory draft when the page is reloaded or closed, covering the final edit boundary in browsers that end a page immediately.

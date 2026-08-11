@@ -30,6 +30,16 @@
     };
   }
 
+  function isSelectedObject(type, id) {
+    const normalized = type === 'wall-endpoint' ? 'wall' : type;
+    if (Array.isArray(State.selectedObjects) && State.selectedObjects.some(entry => {
+      const entryType = entry.type === 'wall-endpoint' ? 'wall' : entry.type;
+      return entryType === normalized && entry.id === id;
+    })) return true;
+    const activeType = State.activeType === 'wall-endpoint' ? 'wall' : State.activeType;
+    return State.activeObject === id && activeType === normalized;
+  }
+
   function drawGrid() {
     const rect = canvas.getBoundingClientRect();
     const preset = getStylePreset();
@@ -70,9 +80,10 @@
   function drawWall(w) {
     const a = toScreen(w.x1, w.y1);
     const b = toScreen(w.x2, w.y2);
+    const selected = isSelectedObject('wall', w.id);
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.strokeStyle = State.activeObject === w.id ? '#0071e3' : '#3a3a3c';
+    ctx.strokeStyle = selected ? '#0071e3' : '#3a3a3c';
     ctx.lineWidth = Math.max(4, w.thickness * State.zoom);
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -85,7 +96,7 @@
     if (State.showDimensions) drawWallDimension(w);
 
     // Endpoint handles when selected
-    if (State.activeObject === w.id) {
+    if (selected) {
       ctx.save();
       ctx.scale(dpr, dpr);
       ctx.fillStyle = '#fff';
@@ -140,12 +151,13 @@
     const hinge = toScreen(pose.hingeX, pose.hingeY);
     const closed = toScreen(pose.centerX * 2 - pose.hingeX, pose.centerY * 2 - pose.hingeY);
     const opened = toScreen(pose.openEndX, pose.openEndY);
+    const selected = isSelectedObject('door', d.id);
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.translate(hinge.x, hinge.y);
     ctx.fillStyle = '#fff';
-    ctx.strokeStyle = '#34c759';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = selected ? '#0071e3' : '#34c759';
+    ctx.lineWidth = selected ? 3 : 2;
     const w = d.width * State.zoom;
     const start = Math.atan2(closed.y - hinge.y, closed.x - hinge.x);
     const end = Math.atan2(opened.y - hinge.y, opened.x - hinge.x);
@@ -162,13 +174,14 @@
 
   function drawWindow(win) {
     const p = toScreen(win.x, win.y);
+    const selected = isSelectedObject('window', win.id);
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.translate(p.x, p.y);
     ctx.rotate(win.angle || 0);
     ctx.fillStyle = '#5ac8fa';
-    ctx.strokeStyle = '#007aff';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = selected ? '#0071e3' : '#007aff';
+    ctx.lineWidth = selected ? 3 : 2;
     const w = win.width * State.zoom / 2;
     ctx.fillRect(-w, -3, w * 2, 6);
     ctx.strokeRect(-w, -3, w * 2, 6);
@@ -185,7 +198,7 @@
     ctx.translate(p.x, p.y);
     ctx.rotate(f.rotation || 0);
 
-    const selected = State.activeType === 'furniture' && State.activeObject === f.id;
+    const selected = isSelectedObject('furniture', f.id);
     ctx.fillStyle = color;
     ctx.globalAlpha = 0.18;
     ctx.strokeStyle = selected ? '#0071e3' : color;
@@ -219,9 +232,10 @@
     const b = toScreen(dim.x2, dim.y2);
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.strokeStyle = '#ff3b30';
-    ctx.fillStyle = '#ff3b30';
-    ctx.lineWidth = 1;
+    const selected = isSelectedObject('dimension', dim.id);
+    ctx.strokeStyle = selected ? '#0071e3' : '#ff3b30';
+    ctx.fillStyle = selected ? '#0071e3' : '#ff3b30';
+    ctx.lineWidth = selected ? 2 : 1;
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'center';
 
@@ -242,8 +256,9 @@
     const steps = Math.max(2, Math.round(stair.stepCount || 16));
     ctx.save();
     ctx.scale(dpr, dpr); ctx.translate(p.x, p.y); ctx.rotate(stair.rotation || 0);
-    ctx.fillStyle = 'rgba(177,143,101,.16)'; ctx.strokeStyle = State.activeType === 'stair' && State.activeObject === stair.id ? '#0071e3' : '#765638';
-    ctx.lineWidth = State.activeType === 'stair' && State.activeObject === stair.id ? 3 : 1.5;
+    const selected = isSelectedObject('stair', stair.id);
+    ctx.fillStyle = 'rgba(177,143,101,.16)'; ctx.strokeStyle = selected ? '#0071e3' : '#765638';
+    ctx.lineWidth = selected ? 3 : 1.5;
     ctx.fillRect(-width / 2, -length / 2, width, length); ctx.strokeRect(-width / 2, -length / 2, width, length);
     ctx.lineWidth = 1;
     for (let index = 1; index < steps; index += 1) {
@@ -411,6 +426,26 @@
     ctx.restore();
   }
 
+  function drawSelectionMarquee() {
+    const box = State.selectionBox;
+    if (!box) return;
+    const a = toScreen(box.start.x, box.start.y);
+    const b = toScreen(box.end.x, box.end.y);
+    const left = Math.min(a.x, b.x);
+    const top = Math.min(a.y, b.y);
+    const width = Math.abs(b.x - a.x);
+    const height = Math.abs(b.y - a.y);
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.fillStyle = 'rgba(0,113,227,.10)';
+    ctx.strokeStyle = '#0071e3';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.fillRect(left, top, width, height);
+    ctx.strokeRect(left, top, width, height);
+    ctx.restore();
+  }
+
   function draw() {
     if (!canvas.width) return;
     drawGrid();
@@ -426,6 +461,7 @@
     drawDimensionPreview();
     drawLiveWallPreview();
     drawRoomPreview();
+    drawSelectionMarquee();
     ctx.restore();
 
     if (window.onDrawComplete) window.onDrawComplete();

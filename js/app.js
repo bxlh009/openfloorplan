@@ -21,26 +21,7 @@
       case 'm': document.querySelector('[data-tool="dimension"]').click(); break;
       case 'r': document.querySelector('[data-tool="room"]').click(); break;
       case 'delete':
-        if (State.activeObject) {
-          let arr = null;
-          if (State.activeType === 'wall') arr = State.walls;
-          if (State.activeType === 'wall-endpoint') arr = State.walls;
-          if (State.activeType === 'door') arr = State.doors;
-          if (State.activeType === 'window') arr = State.windows;
-          if (State.activeType === 'furniture') arr = State.furnitures;
-          if (State.activeType === 'dimension') arr = State.dimensions;
-          if (State.activeType === 'stair') arr = State.stairs;
-          if (arr) {
-            mutateProject(() => {
-              const idx = arr.findIndex(o => o.id === State.activeObject);
-              if (idx >= 0) arr.splice(idx, 1);
-            });
-            State.activeObject = null;
-            State.activeType = null;
-            rebuild3D();
-            renderProps();
-          }
-        }
+        if (window.deleteSelectedObjects) window.deleteSelectedObjects();
         break;
       case 'escape':
         State.wallStart = null;
@@ -49,8 +30,7 @@
         State.snapPreview = null;
         State.roomStart = null;
         if (window._tools && window._tools.resetToolState) window._tools.resetToolState();
-        State.activeObject = null;
-        State.activeType = null;
+        clearSelection();
         State.selectedTool = 'select';
         document.querySelectorAll('[data-tool]').forEach(b => b.classList.remove('active'));
         document.querySelector('[data-tool="select"]').click();
