@@ -85,18 +85,17 @@ function persistLocalDraft() {
   const saved = Boolean(storage && ProjectModel.saveLocalDraft(storage, State));
   const badge = document.querySelector('.autosave-badge');
   if (badge) {
+    const summary = [
+      State.levels?.length || 0, '层 ·',
+      State.walls?.length || 0, '墙 ·',
+      State.doors?.length || 0, '门 ·',
+      State.windows?.length || 0, '窗 ·',
+      State.furnitures?.length || 0, '件家具',
+    ].join(' ');
     badge.dataset.saveState = saved ? 'saved' : 'unavailable';
     badge.setAttribute('aria-live', 'polite');
-    badge.textContent = t(saved ? 'status.autosaveSaved' : 'status.autosaveUnavailable');
-    badge.title = saved
-      ? [
-        State.levels?.length || 0, '层 ·',
-        State.walls?.length || 0, '墙 ·',
-        State.doors?.length || 0, '门 ·',
-        State.windows?.length || 0, '窗 ·',
-        State.furnitures?.length || 0, '件家具',
-      ].join(' ')
-      : t('status.autosaveUnavailable');
+    badge.textContent = saved ? t('status.autosaveSaved') + ' · ' + summary : t('status.autosaveUnavailable');
+    badge.setAttribute('title', saved ? summary : t('status.autosaveUnavailable'));
   }
   return saved;
 }
