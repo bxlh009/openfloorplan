@@ -532,6 +532,15 @@
     return false;
   }
 
+  function getVisibleLevelIds(levels, activeLevelId, mode) {
+    const list = Array.isArray(levels) ? levels : [];
+    if (mode === 'all') return list.map(level => level.id).filter(Boolean);
+    const active = list.find(level => level.id === activeLevelId) || list[0];
+    if (!active) return [];
+    const activeElevation = finiteNumber(active.elevation, 0);
+    return list.filter(level => finiteNumber(level.elevation, 0) <= activeElevation).map(level => level.id).filter(Boolean);
+  }
+
   function selectObjectsInRect(project, rect, levelId) {
     const normalizedRect = normalizeSelectionRect(rect);
     const selected = [];
@@ -623,5 +632,5 @@
     });
   }
 
-  return { CURRENT_VERSION, LOCAL_DRAFT_KEY, DEFAULT_LEVEL, DEFAULT_STYLE, DEFAULT_ARCHITECTURE_STYLE, FURNITURE_DEFAULTS, STYLE_PRESETS, ARCHITECTURE_PRESETS, normalizeProject, serializeProject, saveLocalDraft, loadLocalDraft, getNextObjectId, getNextLevelId, getNextLevelElevation, duplicateLevel, computeFloorPolygons, createHistory, computeWallSegments, computeCutawayWallIds, computeDoorPose, getOpeningOffset, placeOpeningOnWall, hitTestFurniture, selectObjectsInRect, computeObjectSnap, filterFurnitureCatalog };
+  return { CURRENT_VERSION, LOCAL_DRAFT_KEY, DEFAULT_LEVEL, DEFAULT_STYLE, DEFAULT_ARCHITECTURE_STYLE, FURNITURE_DEFAULTS, STYLE_PRESETS, ARCHITECTURE_PRESETS, normalizeProject, serializeProject, saveLocalDraft, loadLocalDraft, getNextObjectId, getNextLevelId, getNextLevelElevation, duplicateLevel, computeFloorPolygons, createHistory, computeWallSegments, computeCutawayWallIds, computeDoorPose, getOpeningOffset, placeOpeningOnWall, hitTestFurniture, getVisibleLevelIds, selectObjectsInRect, computeObjectSnap, filterFurnitureCatalog };
 });

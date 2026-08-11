@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.3 - 2026-08-11
+
+- Synchronize floor selection with the 3D camera: 1F focuses 1F, while an upper floor is shown at its physical elevation with lower floors as context.
+- Keep the whole-building 3D toggle available for an explicit full-home overview.
+- Add regression coverage for active-level visibility and lower-floor context.
+
 ## 0.5.2 - 2026-08-11
 
 - Add rectangle marquee selection on the active level, Shift additive selection, and a one-click/Delete-key removal action.

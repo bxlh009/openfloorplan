@@ -5,7 +5,7 @@
   let _rebuildTimer = null;
   let ambientLight, dirLight, hemiLight, sunAngle = 60, sunIntensity = 1.0;
   let cutawayMode = true;
-  let buildingViewMode = 'all';
+  let buildingViewMode = 'active';
   let walkMode = false, walkHeight = 1.6, walkFloorY = 0;
   let moveF = false, moveB = false, moveL = false, moveR = false, moveSpeed = 0.08;
   let yaw = 0, pitch = 0, keysDown = {};
@@ -13,7 +13,8 @@
 
   function visibleLevels() {
     const levels = State.levels || [ProjectModel.DEFAULT_LEVEL];
-    return buildingViewMode === 'all' ? levels : levels.filter(level => level.id === State.activeLevelId);
+    const visibleIds = new Set(ProjectModel.getVisibleLevelIds(levels, State.activeLevelId, buildingViewMode));
+    return levels.filter(level => visibleIds.has(level.id));
   }
   function visibleLevelIds() { return new Set(visibleLevels().map(level => level.id)); }
   function isVisibleItem(item) { return !item.levelId || visibleLevelIds().has(item.levelId); }
@@ -174,6 +175,15 @@
     };
   }
 
+  function getFocusVerticalBounds() {
+    const active = (State.levels || []).find(level => level.id === State.activeLevelId) || ProjectModel.DEFAULT_LEVEL;
+    const minY = levelElevation(active.id);
+    return {
+      minY,
+      maxY: minY + ((active.height || 280) + (active.floorThickness || 20)) / 100,
+    };
+  }
+
   function updateSun() {
     const angleRad = (sunAngle * Math.PI) / 180;
     const r = 50;
@@ -243,7 +253,9 @@
       if (buildingViewMode === 'all' && State.levels.length > 1) return null;
       setRayFromPointer(e);
       const hit = raycaster.intersectObjects(furnGroup.children, true)[0];
-      return hit ? furnitureRoot(hit.object) : null;
+      const group = hit ? furnitureRoot(hit.object) : null;
+      if (group && buildingViewMode === 'active' && group.userData.levelId !== State.activeLevelId) return null;
+      return group;
     }
     function selectFurniture(group) {
       State.selectedTool = 'select';
@@ -252,6 +264,7 @@
       if (window.updateToolLabel) window.updateToolLabel();
       State.activeObject = group.userData.id;
       State.activeType = 'furniture';
+      if (window.setSelection) window.setSelection([{ id: group.userData.id, type: 'furniture' }]);
       sync3DSelection();
       requestRedraw();
       if (window.renderProps) window.renderProps();
@@ -363,9 +376,10 @@
     function fitHome() {
       const bounds = getHomeBounds();
       const vertical = getBuildingVerticalBounds();
-      const buildingHeight = vertical.maxY - vertical.minY;
-      target.set((bounds.minX + bounds.maxX) / 2, (vertical.minY + vertical.maxY) / 2, (bounds.minZ + bounds.maxZ) / 2);
-      radius = Math.max(6, Math.max(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ, buildingHeight) * 1.65);
+      const focus = buildingViewMode === 'all' ? vertical : getFocusVerticalBounds();
+      const visibleHeightFromFocus = Math.max(focus.maxY - vertical.minY, focus.maxY - focus.minY);
+      target.set((bounds.minX + bounds.maxX) / 2, (focus.minY + focus.maxY) / 2, (bounds.minZ + bounds.maxZ) / 2);
+      radius = Math.max(6, Math.max(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ, visibleHeightFromFocus) * 1.65);
       theta = Math.PI / 4;
       phi = Math.PI / 6;
       updateCameraOrbit(target, radius, theta, phi);
@@ -674,7 +688,7 @@
     }
     group.position.set((stair.x || 0) / 100, levelElevation(stair.levelId), (stair.y || 0) / 100);
     group.rotation.y = -(stair.rotation || 0);
-    group.userData = { id: stair.id, type: 'stair' };
+    group.userData = { id: stair.id, type: 'stair', levelId: stair.levelId };
     furnGroup.add(group);
   }
 
@@ -689,7 +703,7 @@
 
   function buildFurniture(f) {
     const g = new THREE.Group();
-    g.userData = { id: f.id, type: 'furniture' };
+    g.userData = { id: f.id, type: 'furniture', levelId: f.levelId };
     g.position.set(f.x / 100, levelElevation(f.levelId), f.y / 100);
     g.rotation.y = -(f.rotation || 0);
     const col = f.color || defaultFurnitureColor(f.type);
@@ -953,6 +967,7 @@ function getObjPos(obj) {
     requestAnimationFrame(() => controls?.fitHome?.());
     return buildingViewMode;
   }
+  function focusActiveLevel() { return setBuildingViewMode('active'); }
 
   window._view3d = {
     init, buildFromState, onResize,
@@ -965,6 +980,7 @@ function getObjPos(obj) {
     isCutaway: () => cutawayMode,
     getBuildingViewMode: () => buildingViewMode,
     setBuildingViewMode,
+    focusActiveLevel,
     toggleBuildingViewMode: () => setBuildingViewMode(buildingViewMode === 'all' ? 'active' : 'all'),
     toggleCutaway: () => { cutawayMode = !cutawayMode; updateCutaway(); return cutawayMode; },
     resetCamera: () => controls && controls.resetOrbit && controls.resetOrbit(),

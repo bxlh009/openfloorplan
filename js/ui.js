@@ -28,7 +28,11 @@
   document.getElementById('level-select').addEventListener('change', event => {
     State.activeLevelId = event.target.value;
     clearSelection();
-    persistLocalDraft(); syncLevelsUI(); requestRedraw(); rebuild3D(); renderProps();
+    persistLocalDraft(); syncLevelsUI(); requestRedraw();
+    if (window._view3d?.focusActiveLevel) window._view3d.focusActiveLevel();
+    else rebuild3D();
+    if (window.refreshDynamicControls) window.refreshDynamicControls();
+    renderProps();
   });
   document.getElementById('btn-level-add').addEventListener('click', () => {
     mutateProject(() => {

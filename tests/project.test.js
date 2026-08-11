@@ -182,6 +182,19 @@ test('local draft round trip preserves multiple levels and their objects', () =>
   assert.equal(restored.doors[0].levelId, 'level_2');
 });
 
+test('active level 3D view keeps lower floors as physical context', () => {
+  const levels = [
+    { id: 'level_1', elevation: 0 },
+    { id: 'level_2', elevation: 300 },
+    { id: 'level_3', elevation: 600 },
+  ];
+
+  assert.deepEqual(ProjectModel.getVisibleLevelIds(levels, 'level_1', 'active'), ['level_1']);
+  assert.deepEqual(ProjectModel.getVisibleLevelIds(levels, 'level_2', 'active'), ['level_1', 'level_2']);
+  assert.deepEqual(ProjectModel.getVisibleLevelIds(levels, 'level_3', 'active'), ['level_1', 'level_2', 'level_3']);
+  assert.deepEqual(ProjectModel.getVisibleLevelIds(levels, 'level_2', 'all'), ['level_1', 'level_2', 'level_3']);
+});
+
 test('a damaged or unavailable local draft is ignored safely', () => {
   let removed = false;
   const damagedStorage = {
