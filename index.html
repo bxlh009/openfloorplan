@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>户型设计师</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=0.5.0-1">
 </head>
 <body>
 <header class="topbar">
@@ -16,18 +16,46 @@
     <button class="mode" data-mode="split" data-i18n="mode.split">分屏</button>
   </nav>
   <div class="actions">
+    <span class="autosave-badge" data-i18n="status.autosave">本地自动保存</span>
     <button id="btn-new" data-i18n="action.new">新建</button>
-    <button id="btn-save" data-i18n="action.save">保存</button>
+    <button id="btn-save" data-i18n="action.save">导出备份</button>
     <button id="btn-load" data-i18n="action.load">载入</button>
     <button id="btn-export" data-i18n="action.exportSvg">导出 SVG</button>
     <button id="btn-lang" type="button">EN</button>
   </div>
 </header>
 
+<nav class="build-flow" aria-label="建房流程">
+  <button data-flow-target="project" data-i18n="flow.project">1 项目</button>
+  <button data-flow-target="levels" class="active" data-i18n="flow.levels">2 楼层</button>
+  <button data-flow-target="drawing" data-i18n="flow.structure">3 结构</button>
+  <button data-flow-target="drawing" data-i18n="flow.openings">4 通行采光</button>
+  <button data-flow-target="drawing" data-i18n="flow.rooms">5 房间</button>
+  <button data-flow-target="materials" data-i18n="flow.materials">6 材质</button>
+  <button data-flow-target="styles" data-i18n="flow.decorate">7 现代装修</button>
+  <button data-flow-target="output" data-i18n="flow.output">8 检查输出</button>
+</nav>
+
 <main class="layout">
   <aside class="sidebar">
-    <section class="panel">
+    <section class="panel build-note" id="panel-project">
+      <h3 data-i18n="section.project">项目定位</h3>
+      <p data-i18n="safety.concept">用于空间与装修概念设计；结构、消防、报批与施工请按当地规范交由专业人员复核。</p>
+    </section>
+
+    <section class="panel" id="panel-levels">
+      <h3 data-i18n="section.levels">楼层</h3>
+      <div class="level-row">
+        <select id="level-select" aria-label="当前楼层"></select>
+        <button id="btn-level-add" type="button" data-i18n-title="level.add" title="新增空白楼层">＋</button>
+        <button id="btn-level-copy" type="button" data-i18n-title="level.copy" title="复制当前楼层">⧉</button>
+      </div>
+      <div id="level-summary" class="level-summary"></div>
+    </section>
+
+    <section class="panel" id="panel-drawing">
       <h3 data-i18n="section.drawing">绘图</h3>
+      <label class="snap-toggle"><input id="snap-toggle" type="checkbox" checked><span data-i18n="snap.auto">自动吸附墙边、物件和网格</span></label>
       <div class="tool-grid">
         <button class="tool" data-tool="select" data-i18n-title="tool.select" title="选择 (V)"><span class="ico">↖</span><span data-i18n="tool.select">选择</span></button>
         <button class="tool" data-tool="wall" data-i18n-title="tool.wall" title="画墙 (W)"><span class="ico">▬</span><span data-i18n="tool.wall">墙体</span></button>
@@ -35,31 +63,76 @@
         <button class="tool" data-tool="window" data-i18n-title="tool.window" title="窗 (F)"><span class="ico">▭</span><span data-i18n="tool.window">窗</span></button>
         <button class="tool" data-tool="room" data-i18n-title="tool.room" title="房间 (R)"><span class="ico">▣</span><span data-i18n="tool.room">房间</span></button>
         <button class="tool" data-tool="dimension" data-i18n-title="tool.dimension" title="标注 (M)"><span class="ico">↔</span><span data-i18n="tool.dimension">标注</span></button>
+        <button class="tool" data-tool="stair" data-i18n-title="tool.stair" title="直跑楼梯"><span class="ico">▥</span><span data-i18n="tool.stair">楼梯</span></button>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-materials">
+      <h3 data-i18n="section.materials">地板材质</h3>
+      <div class="floor-grid">
+        <button data-floor-finish="wood" class="active" data-i18n="floor.wood">木地板</button>
+        <button data-floor-finish="tile" data-i18n="floor.tile">瓷砖</button>
+        <button data-floor-finish="concrete" data-i18n="floor.concrete">微水泥</button>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-styles">
+      <h3 data-i18n="section.styles">装修风格</h3>
+      <div class="style-grid" id="style-grid">
+        <button class="style-card active" data-style="modern" aria-pressed="true"><span class="style-swatch" style="--style-wall:#f4f1ec;--style-floor:#c8a47b"></span><span data-i18n="style.modern">现代</span></button>
+        <button class="style-card" data-style="nordic" aria-pressed="false"><span class="style-swatch" style="--style-wall:#fbfbf7;--style-floor:#e1c9a8"></span><span data-i18n="style.nordic">北欧</span></button>
+        <button class="style-card" data-style="japanese" aria-pressed="false"><span class="style-swatch" style="--style-wall:#eee7d8;--style-floor:#b89b72"></span><span data-i18n="style.japanese">日式</span></button>
+        <button class="style-card" data-style="wabiSabi" aria-pressed="false"><span class="style-swatch" style="--style-wall:#d8cdbc;--style-floor:#a68b6b"></span><span data-i18n="style.wabiSabi">侘寂</span></button>
+        <button class="style-card" data-style="industrial" aria-pressed="false"><span class="style-swatch" style="--style-wall:#a9aaa7;--style-floor:#6f6b65"></span><span data-i18n="style.industrial">工业</span></button>
+        <button class="style-card" data-style="american" aria-pressed="false"><span class="style-swatch" style="--style-wall:#eadfce;--style-floor:#7a5136"></span><span data-i18n="style.american">美式</span></button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3 data-i18n="section.architecture">建筑构件风格</h3>
+      <div class="style-grid architecture-grid" id="architecture-grid">
+        <button class="style-card active" data-architecture="modern" aria-pressed="true"><span class="architecture-swatch architecture-modern"></span><span data-i18n="style.modern">现代</span></button>
+        <button class="style-card" data-architecture="nordic" aria-pressed="false"><span class="architecture-swatch architecture-nordic"></span><span data-i18n="style.nordic">北欧</span></button>
+        <button class="style-card" data-architecture="japanese" aria-pressed="false"><span class="architecture-swatch architecture-japanese"></span><span data-i18n="style.japanese">日式</span></button>
+        <button class="style-card" data-architecture="wabiSabi" aria-pressed="false"><span class="architecture-swatch architecture-wabi"></span><span data-i18n="style.wabiSabi">侘寂</span></button>
+        <button class="style-card" data-architecture="industrial" aria-pressed="false"><span class="architecture-swatch architecture-industrial"></span><span data-i18n="style.industrial">工业</span></button>
+        <button class="style-card" data-architecture="american" aria-pressed="false"><span class="architecture-swatch architecture-american"></span><span data-i18n="style.american">美式</span></button>
       </div>
     </section>
 
     <section class="panel">
       <h3 data-i18n="section.furniture">家具</h3>
-      <div class="tool-grid">
-        <button class="tool" data-furniture="sofa"><span>🛋</span> <span data-i18n="furniture.sofa">沙发</span></button>
-        <button class="tool" data-furniture="bed"><span>🛏</span> <span data-i18n="furniture.bed">床</span></button>
-        <button class="tool" data-furniture="table"><span>🍽</span> <span data-i18n="furniture.table">餐桌</span></button>
-        <button class="tool" data-furniture="wardrobe"><span>🗄</span> <span data-i18n="furniture.wardrobe">衣柜</span></button>
-        <button class="tool" data-furniture="desk"><span>🪑</span> <span data-i18n="furniture.desk">书桌</span></button>
-        <button class="tool" data-furniture="cabinet"><span>🗄</span> <span data-i18n="furniture.cabinet">橱柜</span></button>
-        <button class="tool" data-furniture="plant"><span>🪴</span> <span data-i18n="furniture.plant">盆栽</span></button>
-        <button class="tool" data-furniture="lamp"><span>💡</span> <span data-i18n="furniture.lamp">落地灯</span></button>
-        <button class="tool" data-furniture="toilet"><span>🚽</span> <span data-i18n="furniture.toilet">马桶</span></button>
-        <button class="tool" data-furniture="bathtub"><span>🛁</span> <span data-i18n="furniture.bathtub">浴缸</span></button>
-        <button class="tool" data-furniture="sink"><span>🚰</span> <span data-i18n="furniture.sink">水槽</span></button>
-        <button class="tool" data-furniture="stove"><span>🔥</span> <span data-i18n="furniture.stove">灶台</span></button>
-        <button class="tool" data-furniture="fridge"><span>🧊</span> <span data-i18n="furniture.fridge">冰箱</span></button>
-        <button class="tool" data-furniture="washer"><span>🌀</span> <span data-i18n="furniture.washer">洗衣机</span></button>
-        <button class="tool" data-furniture="tv"><span>📺</span> <span data-i18n="furniture.tv">电视</span></button>
+      <input class="catalog-search" id="furniture-search" type="search" data-i18n-placeholder="furniture.search" placeholder="搜索家具" autocomplete="off">
+      <div class="catalog-categories" aria-label="Furniture categories">
+        <button class="catalog-category active" data-furniture-category="all" aria-pressed="true" data-i18n="category.all">全部</button>
+        <button class="catalog-category" data-furniture-category="living" aria-pressed="false" data-i18n="category.living">客餐厅</button>
+        <button class="catalog-category" data-furniture-category="bedroom" aria-pressed="false" data-i18n="category.bedroom">卧室</button>
+        <button class="catalog-category" data-furniture-category="work" aria-pressed="false" data-i18n="category.work">办公</button>
+        <button class="catalog-category" data-furniture-category="kitchen" aria-pressed="false" data-i18n="category.kitchen">厨房</button>
+        <button class="catalog-category" data-furniture-category="bath" aria-pressed="false" data-i18n="category.bath">卫浴</button>
+        <button class="catalog-category" data-furniture-category="decor" aria-pressed="false" data-i18n="category.decor">装饰</button>
       </div>
+      <div class="tool-grid" id="furniture-grid">
+        <button class="tool" data-furniture="sofa" data-category="living"><span>🛋</span> <span data-i18n="furniture.sofa">沙发</span></button>
+        <button class="tool" data-furniture="bed" data-category="bedroom"><span>🛏</span> <span data-i18n="furniture.bed">床</span></button>
+        <button class="tool" data-furniture="table" data-category="living"><span>🍽</span> <span data-i18n="furniture.table">餐桌</span></button>
+        <button class="tool" data-furniture="wardrobe" data-category="bedroom"><span>🗄</span> <span data-i18n="furniture.wardrobe">衣柜</span></button>
+        <button class="tool" data-furniture="desk" data-category="work"><span>🪑</span> <span data-i18n="furniture.desk">书桌</span></button>
+        <button class="tool" data-furniture="cabinet" data-category="kitchen"><span>🗄</span> <span data-i18n="furniture.cabinet">橱柜</span></button>
+        <button class="tool" data-furniture="plant" data-category="decor"><span>🪴</span> <span data-i18n="furniture.plant">盆栽</span></button>
+        <button class="tool" data-furniture="lamp" data-category="decor"><span>💡</span> <span data-i18n="furniture.lamp">落地灯</span></button>
+        <button class="tool" data-furniture="toilet" data-category="bath"><span>🚽</span> <span data-i18n="furniture.toilet">马桶</span></button>
+        <button class="tool" data-furniture="bathtub" data-category="bath"><span>🛁</span> <span data-i18n="furniture.bathtub">浴缸</span></button>
+        <button class="tool" data-furniture="sink" data-category="kitchen"><span>🚰</span> <span data-i18n="furniture.sink">水槽</span></button>
+        <button class="tool" data-furniture="stove" data-category="kitchen"><span>🔥</span> <span data-i18n="furniture.stove">灶台</span></button>
+        <button class="tool" data-furniture="fridge" data-category="kitchen"><span>🧊</span> <span data-i18n="furniture.fridge">冰箱</span></button>
+        <button class="tool" data-furniture="washer" data-category="bath"><span>🌀</span> <span data-i18n="furniture.washer">洗衣机</span></button>
+        <button class="tool" data-furniture="tv" data-category="living"><span>📺</span> <span data-i18n="furniture.tv">电视</span></button>
+      </div>
+      <p class="catalog-empty" id="furniture-empty" data-i18n="furniture.empty" hidden>没有匹配的家具</p>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="panel-output">
       <h3 data-i18n="section.properties">属性</h3>
       <div id="props" class="props">
         <p class="hint" data-i18n="hint.selectObject">选择对象查看属性</p>
@@ -89,12 +162,13 @@
 <input type="file" id="file-load" accept=".json" style="display:none">
 
 <script src="js/vendor/three.min.js"></script>
-    <script src="js/i18n.js?v=20260802"></script>
-<script src="js/state.js"></script>
-<script src="js/draw2d.js"></script>
-<script src="js/view3d.js"></script>
-<script src="js/tools.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/app.js"></script>
+<script src="js/project.js?v=0.5.0-3"></script>
+<script src="js/i18n.js?v=0.5.0-3"></script>
+<script src="js/state.js?v=0.5.0-3"></script>
+<script src="js/draw2d.js?v=0.5.0-3"></script>
+<script src="js/view3d.js?v=0.5.0-3"></script>
+<script src="js/tools.js?v=0.5.0-3"></script>
+<script src="js/ui.js?v=0.5.0-3"></script>
+<script src="js/app.js?v=0.5.0-3"></script>
 </body>
 </html>

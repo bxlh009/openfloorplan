@@ -1,19 +1,34 @@
 ﻿// 3D View - Complete rewrite with materials, lighting, wall holes, first-person walk
 (function() {
   let scene, camera, renderer, root, wallGroup, furnGroup, doorGroup, floorGroup;
+  let controls = null;
   let _rebuildTimer = null;
-  let ambientLight, dirLight, sunAngle = 60, sunIntensity = 1.0;
-  let walkMode = false, walkHeight = 1.6;
+  let ambientLight, dirLight, hemiLight, sunAngle = 60, sunIntensity = 1.0;
+  let cutawayMode = true;
+  let buildingViewMode = 'all';
+  let walkMode = false, walkHeight = 1.6, walkFloorY = 0;
   let moveF = false, moveB = false, moveL = false, moveR = false, moveSpeed = 0.08;
   let yaw = 0, pitch = 0, keysDown = {};
+  let furnitureDrag = null;
+
+  function visibleLevels() {
+    const levels = State.levels || [ProjectModel.DEFAULT_LEVEL];
+    return buildingViewMode === 'all' ? levels : levels.filter(level => level.id === State.activeLevelId);
+  }
+  function visibleLevelIds() { return new Set(visibleLevels().map(level => level.id)); }
+  function isVisibleItem(item) { return !item.levelId || visibleLevelIds().has(item.levelId); }
+  function levelElevation(levelId) {
+    return ((State.levels || []).find(level => level.id === levelId)?.elevation || 0) / 100;
+  }
 
   function init() {
     const container = document.getElementById("canvas-3d");
     const w = container.clientWidth || 800;
     const h = container.clientHeight || 600;
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xbfd4e8);
-    scene.fog = new THREE.Fog(0xbfd4e8, 80, 300);
+    const preset = getStylePreset();
+    scene.background = new THREE.Color(preset.sky);
+    scene.fog = new THREE.Fog(preset.sky, 80, 300);
     camera = new THREE.PerspectiveCamera(60, w / h, 0.05, 2000);
     camera.position.set(0, 16, 22);
     renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -23,9 +38,9 @@
     renderer.setSize(w, h);
     container.appendChild(renderer.domElement);
 
-    ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
+    ambientLight = new THREE.AmbientLight(preset.wall, 0.45);
     scene.add(ambientLight);
-    dirLight = new THREE.DirectionalLight(0xfff4e0, sunIntensity);
+    dirLight = new THREE.DirectionalLight(preset.sun, sunIntensity);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 2048;
     dirLight.shadow.mapSize.height = 2048;
@@ -38,8 +53,8 @@
     scene.add(dirLight);
     scene.add(dirLight.target);
 
-    const hemi = new THREE.HemisphereLight(0xddeeff, 0x889966, 0.35);
-    scene.add(hemi);
+    hemiLight = new THREE.HemisphereLight(preset.sky, preset.floor, 0.35);
+    scene.add(hemiLight);
 
     root = new THREE.Group();
     scene.add(root);
@@ -52,52 +67,75 @@
     root.add(doorGroup);
     root.add(furnGroup);
 
-    buildFloor();
+    clearGroup(floorGroup);
+    visibleLevels().forEach(buildFloor);
     setupControls();
     setupKeyboard();
     animate();
     window.addEventListener("resize", onResize);
   }
 
-  function buildFloor() {
-    clearGroup(floorGroup);
+  function buildFloor(level) {
     const bounds = getHomeBounds();
-    const fw = bounds.maxX - bounds.minX + 200;
-    const fd = bounds.maxZ - bounds.minZ + 200;
+    const fw = Math.max(0.5, bounds.maxX - bounds.minX);
+    const fd = Math.max(0.5, bounds.maxZ - bounds.minZ);
     const cx = (bounds.minX + bounds.maxX) / 2;
     const cz = (bounds.minZ + bounds.maxZ) / 2;
-    const tex = makeFloorTexture();
+    const currentLevel = level || State.levels.find(item => item.id === State.activeLevelId) || ProjectModel.DEFAULT_LEVEL;
+    const baseY = levelElevation(currentLevel.id);
+    const tex = makeFloorTexture(currentLevel.floorFinish);
     const floorMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.05 });
+    const polygons = ProjectModel.computeFloorPolygons(State.walls.filter(wall => wall.levelId === currentLevel.id));
+    if (polygons.length) {
+      for (const polygon of polygons) {
+        const shape = new THREE.Shape();
+        polygon.forEach((point, index) => {
+          const method = index === 0 ? 'moveTo' : 'lineTo';
+          shape[method](point.x / 100, -point.y / 100);
+        });
+        shape.closePath();
+        const floor = new THREE.Mesh(new THREE.ShapeGeometry(shape), floorMat.clone());
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = baseY + 0.002;
+        floor.receiveShadow = true;
+        floorGroup.add(floor);
+      }
+      return;
+    }
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(fw, fd), floorMat);
     floor.rotation.x = -Math.PI / 2;
-    floor.position.set(cx, 0, cz);
+    floor.position.set(cx, baseY, cz);
     floor.receiveShadow = true;
     floorGroup.add(floor);
   }
 
-  function makeFloorTexture() {
+  function makeFloorTexture(finish) {
+    const preset = getStylePreset();
     const c = document.createElement("canvas");
     c.width = c.height = 512;
     const ctx = c.getContext("2d");
-    ctx.fillStyle = "#d8c8a8";
-    ctx.fillRect(0, 0, 512, 512);
-    ctx.strokeStyle = "rgba(180,160,130,0.55)";
-    ctx.lineWidth = 2;
-    for (let x = 0; x < 512; x += 64) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 512); ctx.stroke();
-    }
-    for (let y = 0; y < 512; y += 128) {
-      const off = (y / 128) % 2 === 0 ? 0 : 32;
-      for (let x = -32; x < 512; x += 64) {
-        ctx.fillStyle = ((x + off) / 64 + y / 128) % 2 === 0 ? "#d2c2a2" : "#ddd0b4";
-        ctx.fillRect(x + off, y, 64, 128);
+    if (finish === 'wood') {
+      for (let y = 0; y < 512; y += 128) {
+        const off = (y / 128) % 2 === 0 ? 0 : 32;
+        for (let x = -32; x < 512; x += 64) {
+          ctx.fillStyle = ((x + off) / 64 + y / 128) % 2 === 0 ? preset.floor : preset.floorAlt;
+          ctx.fillRect(x + off, y, 64, 128);
+        }
       }
+    } else {
+      ctx.fillStyle = finish === 'tile' ? '#d9d7d2' : '#aaa8a3';
+      ctx.fillRect(0, 0, 512, 512);
     }
+    ctx.strokeStyle = finish === 'concrete' ? 'rgba(255,255,255,0.08)' : 'rgba(40,32,24,0.22)';
+    ctx.lineWidth = 2;
+    const spacing = finish === 'tile' ? 128 : 64;
+    for (let x = 0; x < 512; x += spacing) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 512); ctx.stroke(); }
+    if (finish !== 'concrete') for (let y = 0; y < 512; y += (finish === 'tile' ? 128 : 128)) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke(); }
     const tex = new THREE.CanvasTexture(c);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     const bounds = getHomeBounds();
-    const fw = bounds.maxX - bounds.minX + 200;
-    const fd = bounds.maxZ - bounds.maxZ + 200;
+    const fw = Math.max(0.5, bounds.maxX - bounds.minX);
+    const fd = Math.max(0.5, bounds.maxZ - bounds.minZ);
     const repX = Math.max(1, Math.round(fw / 3));
     const repZ = Math.max(1, Math.round(fd / 3));
     tex.repeat.set(repX, repZ);
@@ -106,22 +144,34 @@
   }
 
   function getHomeBounds() {
-    let minX = -50, maxX = 50, minZ = -50, maxZ = 50;
-    if (State.walls.length) {
+    let minX = -2.5, maxX = 2.5, minZ = -2.5, maxZ = 2.5;
+    const walls = State.walls.filter(isVisibleItem);
+    const furnitures = State.furnitures.filter(isVisibleItem);
+    if (walls.length) {
       minX = Infinity; maxX = -Infinity; minZ = Infinity; maxZ = -Infinity;
-      for (const w of State.walls) {
+      for (const w of walls) {
         minX = Math.min(minX, w.x1 / 100, w.x2 / 100);
         maxX = Math.max(maxX, w.x1 / 100, w.x2 / 100);
         minZ = Math.min(minZ, w.y1 / 100, w.y2 / 100);
         maxZ = Math.max(maxZ, w.y1 / 100, w.y2 / 100);
       }
-    } else if (State.furnitures.length) {
-      for (const f of State.furnitures) {
+    } else if (furnitures.length) {
+      minX = Infinity; maxX = -Infinity; minZ = Infinity; maxZ = -Infinity;
+      for (const f of furnitures) {
         minX = Math.min(minX, f.x / 100); maxX = Math.max(maxX, f.x / 100);
         minZ = Math.min(minZ, f.y / 100); maxZ = Math.max(maxZ, f.y / 100);
       }
     }
     return { minX, maxX, minZ, maxZ };
+  }
+
+  function getBuildingVerticalBounds() {
+    const levels = visibleLevels();
+    if (!levels.length) return { minY: 0, maxY: 3 };
+    return {
+      minY: Math.min(...levels.map(level => level.elevation || 0)) / 100,
+      maxY: Math.max(...levels.map(level => (level.elevation || 0) + (level.height || 280) + (level.floorThickness || 20))) / 100,
+    };
   }
 
   function updateSun() {
@@ -130,6 +180,25 @@
     dirLight.position.set(r * Math.cos(angleRad), r * Math.sin(angleRad), 25);
     dirLight.intensity = sunIntensity;
     dirLight.target.position.set(0, 0, 0);
+  }
+
+  function applyStyleEnvironment() {
+    const preset = getStylePreset();
+    scene.background.set(preset.sky);
+    scene.fog.color.set(preset.sky);
+    ambientLight.color.set(preset.wall);
+    dirLight.color.set(preset.sun);
+    hemiLight.color.set(preset.sky);
+    hemiLight.groundColor.set(preset.floor);
+  }
+
+  function updateCutaway() {
+    if (!wallGroup || !doorGroup || !camera) return;
+    const hiddenWallIds = cutawayMode && !walkMode
+      ? new Set(ProjectModel.computeCutawayWallIds(State.walls.filter(isVisibleItem), camera.position))
+      : new Set();
+    wallGroup.children.forEach(mesh => { mesh.visible = !hiddenWallIds.has(mesh.userData.wallId); });
+    doorGroup.children.forEach(group => { group.visible = !hiddenWallIds.has(group.userData.wallId); });
   }
 
   function onResize() {
@@ -144,24 +213,117 @@
   function setupControls() {
     let isDown = false, isPanning = false;
     let lastX = 0, lastY = 0;
-    let theta = Math.PI / 4, phi = Math.PI / 3, radius = 28;
+    let theta = Math.PI / 4, phi = Math.PI / 3, radius = 12;
     const target = new THREE.Vector3(0, 0, 0);
     const el = renderer.domElement;
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    let pendingFurnitureClick = null;
+
+    function setRayFromPointer(e) {
+      const rect = el.getBoundingClientRect();
+      pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+      raycaster.setFromCamera(pointer, camera);
+    }
+    function floorPoint(e) {
+      setRayFromPointer(e);
+      const point = new THREE.Vector3();
+      return raycaster.ray.intersectPlane(floorPlane, point) ? point : null;
+    }
+    function furnitureRoot(object) {
+      let current = object;
+      while (current && current !== furnGroup) {
+        if (current.userData && current.userData.type === 'furniture') return current;
+        current = current.parent;
+      }
+      return null;
+    }
+    function pickFurniture(e) {
+      if (buildingViewMode === 'all' && State.levels.length > 1) return null;
+      setRayFromPointer(e);
+      const hit = raycaster.intersectObjects(furnGroup.children, true)[0];
+      return hit ? furnitureRoot(hit.object) : null;
+    }
+    function selectFurniture(group) {
+      State.selectedTool = 'select';
+      State.dimensionStart = null;
+      document.querySelectorAll('[data-tool]').forEach(button => button.classList.toggle('active', button.dataset.tool === 'select'));
+      if (window.updateToolLabel) window.updateToolLabel();
+      State.activeObject = group.userData.id;
+      State.activeType = 'furniture';
+      sync3DSelection();
+      requestRedraw();
+      if (window.renderProps) window.renderProps();
+      const status = document.getElementById('status-info');
+      if (status) status.textContent = t('message.dragSelected3d');
+    }
 
     el.addEventListener("contextmenu", e => e.preventDefault());
 
     el.addEventListener("pointerdown", e => {
       if (walkMode) return;
+      if (e.button === 0) {
+        const group = pickFurniture(e);
+        const alreadySelected = group && State.activeType === 'furniture' && State.activeObject === group.userData.id;
+        const now = performance.now();
+        const isDoubleClick = group && !alreadySelected && pendingFurnitureClick
+          && pendingFurnitureClick.id === group.userData.id
+          && now - pendingFurnitureClick.time <= 500;
+        if (isDoubleClick) {
+          pendingFurnitureClick = null;
+          selectFurniture(group);
+          e.preventDefault();
+          return;
+        }
+        pendingFurnitureClick = group && !alreadySelected
+          ? { id: group.userData.id, time: now }
+          : null;
+        const point = alreadySelected ? floorPoint(e) : null;
+        if (alreadySelected && point) {
+          furnitureDrag = {
+            id: group.userData.id,
+            group,
+            offsetX: group.position.x - point.x,
+            offsetZ: group.position.z - point.z,
+            history: beginHistory(),
+          };
+          el.style.cursor = 'grabbing';
+          e.preventDefault();
+          return;
+        }
+      }
       if (e.button === 1 || e.button === 2) {
         isPanning = true; lastX = e.clientX; lastY = e.clientY; e.preventDefault();
       } else if (e.button === 0) {
         isDown = true; lastX = e.clientX; lastY = e.clientY;
       }
     });
-    window.addEventListener("pointerup", () => { isDown = false; isPanning = false; });
+    window.addEventListener("pointerup", () => {
+      isDown = false; isPanning = false;
+      if (furnitureDrag) {
+        commitHistory(furnitureDrag.history);
+        furnitureDrag = null;
+        State.snapGuides = [];
+        el.style.cursor = '';
+        buildFromState();
+      }
+    });
     window.addEventListener("pointermove", e => {
       if (walkMode) return;
-      if (isPanning) {
+      if (furnitureDrag) {
+        const point = floorPoint(e);
+        const furniture = State.furnitures.find(item => item.id === furnitureDrag.id);
+        if (point && furniture) {
+          const raw = { x: (point.x + furnitureDrag.offsetX) * 100, y: (point.z + furnitureDrag.offsetZ) * 100, w: furniture.w, d: furniture.d || furniture.h };
+          const snapped = window._tools?.snapObject ? window._tools.snapObject(raw, furniture.id) : raw;
+          furniture.x = Math.round(snapped.x);
+          furniture.y = Math.round(snapped.y);
+          furnitureDrag.group.position.set(furniture.x / 100, levelElevation(furniture.levelId), furniture.y / 100);
+          requestRedraw();
+          if (window.renderProps) window.renderProps();
+        }
+      } else if (isPanning) {
         const dx = e.clientX - lastX, dy = e.clientY - lastY;
         lastX = e.clientX; lastY = e.clientY;
         const ps = radius * 0.006;
@@ -196,8 +358,19 @@
         t.z + r * Math.sin(ph) * Math.sin(th)
       );
       camera.lookAt(t);
+      updateCutaway();
     }
-    controls = { updateCamera: () => updateCameraOrbit(target, radius, theta, phi), resetOrbit: () => { radius = 28; theta = Math.PI / 4; phi = Math.PI / 3; target.set(0,0,0); updateCameraOrbit(target, radius, theta, phi); } };
+    function fitHome() {
+      const bounds = getHomeBounds();
+      const vertical = getBuildingVerticalBounds();
+      const buildingHeight = vertical.maxY - vertical.minY;
+      target.set((bounds.minX + bounds.maxX) / 2, (vertical.minY + vertical.maxY) / 2, (bounds.minZ + bounds.maxZ) / 2);
+      radius = Math.max(6, Math.max(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ, buildingHeight) * 1.65);
+      theta = Math.PI / 4;
+      phi = Math.PI / 6;
+      updateCameraOrbit(target, radius, theta, phi);
+    }
+    controls = { updateCamera: () => updateCameraOrbit(target, radius, theta, phi), fitHome, resetOrbit: fitHome };
     updateSun();
     controls.updateCamera();
   }
@@ -227,7 +400,7 @@
       if (v.lengthSq() > 0) {
         v.normalize().multiplyScalar(moveSpeed);
         camera.position.add(v);
-        camera.position.y = walkHeight;
+        camera.position.y = walkFloorY + walkHeight;
       }
       camera.rotation.order = "YXZ";
       camera.rotation.y = yaw;
@@ -237,12 +410,15 @@
   }
 
   function enterWalkMode() {
+    walkFloorY = levelElevation(State.activeLevelId);
     walkMode = true;
-    camera.position.set(camera.position.x, walkHeight, camera.position.z);
+    updateCutaway();
+    camera.position.set(camera.position.x, walkFloorY + walkHeight, camera.position.z);
     renderer.domElement.requestPointerLock?.();
   }
   function exitWalkMode() {
     walkMode = false;
+    updateCutaway();
     document.exitPointerLock?.();
   }
 
@@ -276,37 +452,66 @@
     if (_rebuildTimer) cancelAnimationFrame(_rebuildTimer);
     _rebuildTimer = requestAnimationFrame(() => {
       _rebuildTimer = null;
+      applyStyleEnvironment();
       clearGroup(wallGroup); clearGroup(furnGroup); clearGroup(doorGroup);
-      buildFloor();
+      clearGroup(floorGroup);
+      visibleLevels().forEach(buildFloor);
       if (!State) return;
-      State.walls.forEach(w => { if (w.id) buildWall(w); });
-      State.furnitures.forEach(f => buildFurniture(f));
-      State.doors.forEach(d => { if (d.wallId) buildDoor(d); });
-      State.windows.forEach(w => { if (w.wallId) buildWindow(w); });
+      State.walls.filter(isVisibleItem).forEach(w => { if (w.id) buildWall(w); });
+      State.furnitures.filter(isVisibleItem).forEach(f => buildFurniture(f));
+      State.stairs.filter(isVisibleItem).forEach(buildStair);
+      State.doors.filter(isVisibleItem).forEach(d => { if (d.wallId) buildDoor(d); });
+      State.windows.filter(isVisibleItem).forEach(w => { if (w.wallId) buildWindow(w); });
+      updateCutaway();
+      sync3DSelection();
     });
   }
 
   // ---- Wall (reliable BoxGeometry) ----
   function buildWall(w) {
+    const baseY = levelElevation(w.levelId);
     const x1 = w.x1 / 100, z1 = w.y1 / 100, x2 = w.x2 / 100, z2 = w.y2 / 100;
     const dx = x2 - x1, dz = z2 - z1;
     const len = Math.hypot(dx, dz);
     if (len < 0.01) return;
     const thick = (w.thickness || 20) / 100;
-    const height = (w.height || 280) / 100;
     const angle = Math.atan2(dz, dx);
-
-    const wallColor = w.color ? new THREE.Color(w.color) : new THREE.Color(0xf5f0e8);
-    const geo = new THREE.BoxGeometry(len, height, thick);
-    const mat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.9, metalness: 0.0 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    // Place at wall midpoint, rotate so local X aligns with wall direction
-    mesh.position.set(x1 + dx / 2, height / 2, z1 + dz / 2);
-    mesh.rotation.y = -angle;
-    mesh.userData = { wallId: w.id, type: "wall" };
-    wallGroup.add(mesh);
+    const ux = dx / len, uz = dz / len;
+    const wallColor = w.color || getStylePreset().wall;
+    const architecture = getArchitecturePreset();
+    const trimColor = State.architectureStyle === 'industrial' ? getStylePreset().metal : getStylePreset().wood;
+    const segments = ProjectModel.computeWallSegments(
+      w,
+      State.doors.filter(door => door.levelId === w.levelId),
+      State.windows.filter(win => win.levelId === w.levelId),
+    );
+    for (const segment of segments) {
+      const width = segment.end - segment.start;
+      const height = segment.top - segment.bottom;
+      const center = (segment.start + segment.end) / 2;
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(width, height, thick),
+        new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.9, metalness: 0.0 }),
+      );
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.position.set(x1 + ux * center, baseY + segment.bottom + height / 2, z1 + uz * center);
+      mesh.rotation.y = -angle;
+      mesh.userData = { wallId: w.id, type: "wall" };
+      wallGroup.add(mesh);
+      if (segment.bottom === 0 && architecture.baseboard > 0) {
+        const trimH = Math.min(architecture.baseboard, height);
+        const trim = new THREE.Mesh(new THREE.BoxGeometry(width, trimH, thick + 0.035), mat(trimColor, { roughness: 0.65 }));
+        trim.position.set(x1 + ux * center, baseY + trimH / 2, z1 + uz * center);
+        trim.rotation.y = -angle; trim.userData = { wallId: w.id, type: 'baseboard' }; wallGroup.add(trim);
+      }
+      if (Math.abs(segment.top - (w.height || 280) / 100) < 0.001 && architecture.crown > 0) {
+        const trimH = Math.min(architecture.crown, height);
+        const trim = new THREE.Mesh(new THREE.BoxGeometry(width, trimH, thick + 0.04), mat(trimColor, { roughness: 0.65 }));
+        trim.position.set(x1 + ux * center, baseY + segment.top - trimH / 2, z1 + uz * center);
+        trim.rotation.y = -angle; trim.userData = { wallId: w.id, type: 'crown' }; wallGroup.add(trim);
+      }
+    }
   }
 
   // ---- Door ----
@@ -334,6 +539,7 @@
   }
 
   function buildDoor(d) {
+    const baseY = levelElevation(d.levelId);
     const wall = State.walls.find(w => w.id === d.wallId);
     if (!wall) return;
     const pos = getObjPos(d);
@@ -342,35 +548,63 @@
     const wallThick = (wall.thickness || 20) / 100;
     const angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
     const dw = (d.width || 90) / 100;
-    const dh = Math.min(2.1, wallH * 0.85);
+    const dh = Math.min((d.height || 210) / 100, wallH);
+    const pose = ProjectModel.computeDoorPose(d, wall);
 
     // Group at wall centerline, rotated to match wall direction
     const g = new THREE.Group();
-    g.position.set(pos.x, 0, pos.z);
+    g.position.set(pos.x, baseY, pos.z);
     g.rotation.y = -angle;
+    g.userData.wallId = wall.id;
 
-    const ft = 0.05;
-    const fm = mat(0x6b4f2a, { roughness: 0.7 });
+    const architecture = getArchitecturePreset();
+    const ft = architecture.frameWidth;
+    const fm = mat(getStylePreset().wood, { roughness: 0.7 });
 
-    // Dark opening (sits in wall, full depth)
-    g.add(mkBox(dw, dh, wallThick + 0.06, mat(0x0a0a0a, {roughness:1}), 0, dh/2, 0));
-    // Frame: border just proud of wall face
-    g.add(mkBox(dw + ft*2, dh + ft*2, 0.03, fm, 0, dh/2, wallThick/2));
-    g.add(mkBox(dw + ft*2, dh + ft*2, 0.03, fm, 0, dh/2, -wallThick/2));
-    // Side frame caps
+    // Frame strips line the actual wall opening.
     for (const sx of [-1, 1]) {
       g.add(mkBox(ft, dh, wallThick + 0.02, fm, sx*(dw/2+ft/2), dh/2, 0));
     }
-    // Door leaf: flat panel near one face
+    g.add(mkBox(dw + ft*2, ft, wallThick + 0.02, fm, 0, dh + ft/2, 0));
+    // Door leaf pivots from the nearest jamb, matching the 2D opening arc.
     const leafW = dw - 0.08;
-    g.add(mkBox(leafW, dh - 0.1, 0.03, mat(0x8b5a2b, {roughness:0.75}), -leafW*0.2, (dh-0.1)/2, wallThick/2 - 0.015));
-    // Knob
-    g.add(mkSphere(0.025, mat(0xffd700, {metalness:0.6, roughness:0.3}), dw/2 - 0.1, dh*0.5, wallThick/2 + 0.02));
+    const leaf = new THREE.Group();
+    leaf.position.x = pose.hingeSide * dw / 2;
+    leaf.rotation.y = pose.hingeSide * (d.swing === -1 ? -1 : 1) * pose.openAngle * Math.PI / 180;
+    leaf.add(mkBox(leafW, dh - 0.1, 0.035, mat(getStylePreset().wood, {roughness:0.75}), -pose.hingeSide * leafW / 2, (dh-0.1)/2, 0));
+    decorateDoorLeaf(leaf, leafW, dh - 0.1, pose.hingeSide, architecture.doorProfile);
+    leaf.add(mkSphere(0.025, mat(getStylePreset().metal, {metalness:0.65, roughness:0.25}), -pose.hingeSide * (leafW - 0.12), dh*0.5, 0.035));
+    g.add(leaf);
 
     doorGroup.add(g);
   }
 
+  function decorateDoorLeaf(leaf, width, height, hingeSide, profile) {
+    const cx = -hingeSide * width / 2;
+    const accent = mat(getStylePreset().metal, { metalness: profile === 'steel' ? 0.65 : 0.15, roughness: 0.45 });
+    if (profile === 'groove') {
+      for (const x of [-0.22, 0, 0.22]) leaf.add(mkBox(0.012, height * 0.78, 0.012, accent, cx + x * width, height * 0.52, 0.024));
+    } else if (profile === 'slatted') {
+      for (let y = height * 0.18; y < height * 0.9; y += height * 0.12) leaf.add(mkBox(width * 0.82, 0.018, 0.014, accent, cx, y, 0.024));
+    } else if (profile === 'organic') {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(Math.min(width, height) * 0.2, 0.012, 8, 28), accent);
+      ring.position.set(cx, height * 0.56, 0.025); leaf.add(ring);
+    } else if (profile === 'steel') {
+      for (const rotation of [-0.55, 0.55]) {
+        const brace = mkBox(width * 0.82, 0.025, 0.018, accent, cx, height * 0.52, 0.026);
+        brace.rotation.z = rotation; leaf.add(brace);
+      }
+    } else if (profile === 'panel') {
+      for (const cy of [height * 0.3, height * 0.68]) {
+        leaf.add(mkBox(width * 0.66, 0.025, 0.016, accent, cx, cy - height * 0.12, 0.025));
+        leaf.add(mkBox(width * 0.66, 0.025, 0.016, accent, cx, cy + height * 0.12, 0.025));
+        for (const sx of [-1, 1]) leaf.add(mkBox(0.025, height * 0.24, 0.016, accent, cx + sx * width * 0.33, cy, 0.025));
+      }
+    }
+  }
+
   function buildWindow(win) {
+    const baseY = levelElevation(win.levelId);
     const wall = State.walls.find(w => w.id === win.wallId);
     if (!wall) return;
     const pos = getObjPos(win);
@@ -379,23 +613,33 @@
     const wallThick = (wall.thickness || 20) / 100;
     const angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
     const ww = (win.width || 120) / 100;
-    const wh = Math.min(0.7, wallH * 0.35);
-    const wc = Math.min(wallH * 0.55, 1.0);
+    const wh = Math.min((win.height || 120) / 100, wallH);
+    const sill = Math.min((win.sillHeight || 90) / 100, Math.max(0, wallH - wh));
+    const wc = sill + wh / 2;
 
     const g = new THREE.Group();
-    g.position.set(pos.x, wc, pos.z);
+    g.position.set(pos.x, baseY + wc, pos.z);
     g.rotation.y = -angle;
+    g.userData.wallId = wall.id;
 
-    const ft = 0.05;
-    const fm = mat(0x3a3a3a, { roughness: 0.6 });
+    const architecture = getArchitecturePreset();
+    const ft = architecture.frameWidth;
+    const frameColor = ['japanese', 'nordic', 'american'].includes(State.architectureStyle) ? getStylePreset().wood : getStylePreset().metal;
+    const fm = mat(frameColor, { roughness: 0.6 });
 
-    // Frame (flat panel on wall face)
-    g.add(mkBox(ww + ft*2, wh + ft*2, 0.02, fm, 0, 0, wallThick/2 + 0.01));
+    for (const sx of [-1, 1]) g.add(mkBox(ft, wh, wallThick + 0.02, fm, sx*(ww/2+ft/2), 0, 0));
+    for (const sy of [-1, 1]) g.add(mkBox(ww + ft*2, ft, wallThick + 0.02, fm, 0, sy*(wh/2+ft/2), 0));
     // Glass (transparent, fills opening)
     g.add(mkBox(ww - ft*2, wh - ft*2, 0.015, new THREE.MeshStandardMaterial({color:0x87ceeb, transparent:true, opacity:0.3, roughness:0.05, metalness:0.1}), 0, 0, wallThick/2 + 0.012));
-    // Mullion cross (flat bars)
-    g.add(mkBox(ww - ft*2, 0.015, 0.01, fm, 0, 0, wallThick/2 + 0.02));
-    g.add(mkBox(0.015, wh - ft*2, 0.01, fm, 0, 0, wallThick/2 + 0.02));
+    // Style-specific mullion geometry, not a color filter.
+    const addVertical = x => g.add(mkBox(Math.max(0.012, ft * 0.45), wh - ft*2, 0.012, fm, x, 0, wallThick/2 + 0.02));
+    const addHorizontal = y => g.add(mkBox(ww - ft*2, Math.max(0.012, ft * 0.45), 0.012, fm, 0, y, wallThick/2 + 0.02));
+    if (architecture.mullions === 1) addVertical(0);
+    if (architecture.mullions === 2) { addVertical(0); addHorizontal(0); }
+    if (architecture.mullions === 4) {
+      for (const x of [-ww/4, 0, ww/4]) addVertical(x);
+      for (const y of [-wh/4, 0, wh/4]) addHorizontal(y);
+    }
     // Sill (small ledge below)
     g.add(mkBox(ww + 0.1, 0.04, 0.06, mat(0x555555, {roughness:0.7}), 0, -wh/2 - 0.02, wallThick/2 + 0.03));
 
@@ -413,12 +657,42 @@
     return m;
   }
 
+  function buildStair(stair) {
+    const current = State.levels.find(level => level.id === stair.levelId) || ProjectModel.DEFAULT_LEVEL;
+    const target = State.levels.find(level => level.id === stair.toLevelId);
+    const totalRise = Math.max(1, ((target?.elevation ?? (current.elevation + current.height + current.floorThickness)) - current.elevation) / 100);
+    const stepCount = Math.max(2, Math.round(stair.stepCount || 16));
+    const width = Math.max(0.5, (stair.width || 100) / 100);
+    const length = Math.max(1, (stair.length || 300) / 100);
+    const group = new THREE.Group();
+    const material = mat(getStylePreset().wood, { roughness: 0.78 });
+    for (let index = 0; index < stepCount; index += 1) {
+      const depth = length / stepCount;
+      const height = totalRise * (index + 1) / stepCount;
+      const step = mkBox(width, height, depth, material, 0, height / 2, -length / 2 + depth * (index + 0.5));
+      group.add(step);
+    }
+    group.position.set((stair.x || 0) / 100, levelElevation(stair.levelId), (stair.y || 0) / 100);
+    group.rotation.y = -(stair.rotation || 0);
+    group.userData = { id: stair.id, type: 'stair' };
+    furnGroup.add(group);
+  }
+
   // ---- Furniture ----  // ---- Furniture ----
+  function defaultFurnitureColor(type) {
+    const preset = getStylePreset();
+    if (['sofa', 'lamp'].includes(type)) return preset.fabric;
+    if (['fridge', 'tv', 'stove', 'washer'].includes(type)) return preset.metal;
+    if (type === 'plant') return preset.accent;
+    return preset.wood;
+  }
+
   function buildFurniture(f) {
     const g = new THREE.Group();
-    g.position.set(f.x / 100, 0, f.y / 100);
+    g.userData = { id: f.id, type: 'furniture' };
+    g.position.set(f.x / 100, levelElevation(f.levelId), f.y / 100);
     g.rotation.y = -(f.rotation || 0);
-    const col = f.color;
+    const col = f.color || defaultFurnitureColor(f.type);
     switch (f.type) {
       case "sofa": buildSofa(g, f, col); break;
       case "bed": buildBed(g, f, col); break;
@@ -437,7 +711,29 @@
       case "washer": buildWasher(g, f, col); break;
       default: buildBox(g, f, col); break;
     }
+    addFurnitureSelectionRing(g, f);
     furnGroup.add(g);
+  }
+
+  function addFurnitureSelectionRing(group, furniture) {
+    const w = (furniture.w || 60) / 100 + 0.08;
+    const d = (furniture.d || 60) / 100 + 0.08;
+    const points = [
+      new THREE.Vector3(-w/2, 0.018, -d/2), new THREE.Vector3(w/2, 0.018, -d/2),
+      new THREE.Vector3(w/2, 0.018, d/2), new THREE.Vector3(-w/2, 0.018, d/2),
+    ];
+    const ring = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0x0071e3 }));
+    ring.name = 'selection-ring';
+    ring.visible = State.activeType === 'furniture' && State.activeObject === furniture.id;
+    group.add(ring);
+  }
+
+  function sync3DSelection() {
+    if (!furnGroup) return;
+    furnGroup.children.forEach(group => {
+      const ring = group.getObjectByName('selection-ring');
+      if (ring) ring.visible = State.activeType === 'furniture' && State.activeObject === group.userData.id;
+    });
   }
 
   function mat(color, opts) { return new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.05, ...(opts || {}) }); }
@@ -449,57 +745,87 @@
   }
 
   function buildSofa(g, f, col) {
-    const w = (f.w || 180) / 100, d = (f.d || 85) / 100, sh = 0.45, bh = 0.4, armW = Math.min(w * 0.08, 0.1);
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(w, sh, d), mat(col || 0x8b6f47));
-    seat.position.y = sh / 2 + 0.06; seat.castShadow = true; g.add(seat);
-    const back = new THREE.Mesh(new THREE.BoxGeometry(w, bh, 0.08), mat(col || 0x7a5c3a));
-    back.position.set(0, sh + 0.06 + bh / 2, -d / 2 + 0.04); back.castShadow = true; g.add(back);
+    const w = (f.w || 180) / 100, d = (f.d || 85) / 100;
+    const profile = getStylePreset().furnitureProfile;
+    const sh = { low:0.32, tapered:0.38, floor:0.24, organic:0.34, frame:0.35, classic:0.46 }[profile];
+    const bh = { low:0.34, tapered:0.42, floor:0.3, organic:0.38, frame:0.4, classic:0.5 }[profile];
+    const legH = profile === 'floor' ? 0.025 : profile === 'classic' ? 0.05 : 0.11;
+    const armW = profile === 'floor' ? 0 : Math.min(w * (profile === 'classic' ? 0.1 : 0.045), profile === 'classic' ? 0.16 : 0.075);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(w, 0.12, d), mat(profile === 'frame' ? getStylePreset().metal : getStylePreset().wood));
+    base.position.y = legH + 0.06; base.castShadow = true; g.add(base);
+    const cushionCount = w > 1.5 ? 3 : 2;
+    for (let i = 0; i < cushionCount; i += 1) {
+      const cushionW = (w - armW * 2 - 0.05) / cushionCount;
+      const cushion = new THREE.Mesh(new THREE.BoxGeometry(cushionW - 0.015, sh, d - 0.11), mat(col || 0x8b6f47, { roughness: profile === 'organic' ? 0.95 : 0.78 }));
+      cushion.position.set(-w/2 + armW + cushionW*(i+0.5), legH + 0.12 + sh/2, 0.035); cushion.castShadow = true; g.add(cushion);
+    }
+    const back = new THREE.Mesh(new THREE.BoxGeometry(w - armW*2, bh, profile === 'classic' ? 0.14 : 0.09), mat(col || 0x7a5c3a));
+    back.position.set(0, legH + 0.12 + sh + bh/2 - 0.06, -d/2 + 0.06); back.castShadow = true; g.add(back);
     if (armW > 0.02) {
       for (const sx of [-1, 1]) {
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(armW, sh + bh * 0.6, d), mat(col || 0x7a5c3a));
-        arm.position.set(sx * (w / 2 - armW / 2), (sh + bh * 0.6) / 2 + 0.06, 0); g.add(arm);
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(armW, sh * 0.72, d - 0.05), mat(col || 0x7a5c3a));
+        arm.position.set(sx * (w / 2 - armW / 2), legH + 0.12 + sh * 0.36, 0); g.add(arm);
       }
     }
-    for (const lx of [-w / 2 + 0.08, w / 2 - 0.08]) for (const lz of [-d / 2 + 0.08, d / 2 - 0.08]) {
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.06, 6), mat(0x333333));
-      leg.position.set(lx, 0.03, lz); g.add(leg);
+    if (legH > 0.03) for (const lx of [-w / 2 + 0.1, w / 2 - 0.1]) for (const lz of [-d / 2 + 0.09, d / 2 - 0.09]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.012, profile === 'tapered' ? 0.022 : 0.012, legH, 8), mat(profile === 'frame' || profile === 'low' ? getStylePreset().metal : getStylePreset().wood));
+      leg.position.set(lx, legH/2, lz); g.add(leg);
     }
   }
 
   function buildBed(g, f, col) {
     const w = (f.w || 160) / 100, d = (f.d || 200) / 100, frameH = 0.2;
+    const profile = getStylePreset().furnitureProfile;
     const frame = new THREE.Mesh(new THREE.BoxGeometry(w, frameH, d), mat(col || 0x8b6f47));
     frame.position.y = frameH / 2; frame.castShadow = true; g.add(frame);
     const mattress = new THREE.Mesh(new THREE.BoxGeometry(w - 0.04, 0.18, d - 0.04), mat(0xfaf5ef));
     mattress.position.y = frameH + 0.09; g.add(mattress);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(w, 0.7, 0.06), mat(col || 0x6b4f2a));
-    head.position.set(0, 0.35 + frameH, -d / 2 + 0.03); g.add(head);
+    const headH = { low:0.55, tapered:0.72, floor:0.46, organic:0.62, frame:0.74, classic:0.88 }[profile];
+    const head = new THREE.Mesh(new THREE.BoxGeometry(w, headH, profile === 'classic' ? 0.11 : 0.055), mat(col || 0x6b4f2a));
+    head.position.set(0, headH/2 + frameH, -d / 2 + 0.03); g.add(head);
+    if (profile === 'floor') for (const x of [-0.36,-0.18,0,0.18,0.36]) {
+      const slat = mkBox(0.025, headH * 0.8, 0.018, mat(getStylePreset().wood), x*w, frameH + headH/2, -d/2 - 0.006); g.add(slat);
+    }
     const pillow = new THREE.Mesh(new THREE.BoxGeometry(w - 0.3, 0.08, 0.25), mat(0xffffff));
     pillow.position.set(0, frameH + 0.18 + 0.04, -d / 2 + 0.2); g.add(pillow);
   }
 
   function buildTable(g, f, col) {
     const w = (f.w || 120) / 100, d = (f.d || 80) / 100, h = (f.h || 75) / 100, topH = h * 0.06;
+    const profile = getStylePreset().furnitureProfile;
     const top = new THREE.Mesh(new THREE.BoxGeometry(w, topH, d), mat(col || 0xa0522d));
     top.position.y = h - topH / 2; top.castShadow = true; g.add(top);
-    const legR = Math.max(0.015, w * 0.02);
-    for (const lx of [-w / 2 + 0.05, w / 2 - 0.05]) for (const lz of [-d / 2 + 0.05, d / 2 - 0.05]) {
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(legR, legR * 0.8, h - topH, 8), mat(col || 0x5a3a1a));
-      leg.position.set(lx, (h - topH) / 2, lz); g.add(leg);
+    const legMat = mat(profile === 'low' || profile === 'frame' ? getStylePreset().metal : getStylePreset().wood, { metalness: profile === 'frame' ? 0.55 : 0.05 });
+    if (profile === 'low' || profile === 'frame') {
+      for (const lx of [-w * 0.32, w * 0.32]) g.add(mkBox(0.035, h - topH, d * 0.72, legMat, lx, (h-topH)/2, 0));
+    } else if (profile === 'organic') {
+      const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(w*0.12, w*0.2, h-topH, 20), legMat);
+      pedestal.position.y = (h-topH)/2; g.add(pedestal);
+    } else {
+      const legR = Math.max(0.015, w * 0.018);
+      for (const lx of [-w / 2 + 0.06, w / 2 - 0.06]) for (const lz of [-d / 2 + 0.06, d / 2 - 0.06]) {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(legR * 0.65, legR, h - topH, 8), legMat);
+        leg.position.set(lx, (h - topH) / 2, lz); g.add(leg);
+      }
     }
   }
 
   function buildWardrobe(g, f, col) {
     const w = (f.w || 180) / 100, d = (f.d || 60) / 100, h = (f.h || 200) / 100;
+    const profile = getStylePreset().furnitureProfile;
     const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(col || 0x8b5a2b));
     body.position.y = h / 2; body.castShadow = true; g.add(body);
     const doorW = w / 2 - 0.02;
     for (const sx of [-1, 1]) {
       const door = new THREE.Mesh(new THREE.BoxGeometry(doorW, h - 0.05, 0.02), mat(col ? new THREE.Color(col).multiplyScalar(0.85) : 0x6b3a1a));
       door.position.set(sx * w / 4, h / 2, d / 2 + 0.01); g.add(door);
-      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), mat(0xffd700, { metalness: 0.6, roughness: 0.3 }));
-      knob.position.set(sx * 0.06, h / 2, d / 2 + 0.03); g.add(knob);
+      const handle = mkBox(profile === 'classic' ? 0.035 : 0.018, profile === 'classic' ? 0.09 : h * 0.34, 0.018, mat(getStylePreset().metal, { metalness: 0.65, roughness: 0.3 }), sx * 0.045, h * 0.52, d / 2 + 0.032);
+      g.add(handle);
+      if (profile === 'classic') {
+        for (const y of [h*0.28,h*0.68]) g.add(mkBox(doorW*0.72, 0.018, 0.012, mat(getStylePreset().wood), sx*w/4, y, d/2+0.035));
+      }
     }
+    if (profile === 'floor') for (let x = -w*0.42; x <= w*0.42; x += w*0.12) g.add(mkBox(0.018, h*0.88, 0.012, mat(getStylePreset().wood), x, h/2, d/2+0.04));
   }
 
   function buildToilet(g, f, col) {
@@ -536,9 +862,9 @@
 
   function buildPlant(g, f, col) {
     const w = (f.w || 30) / 100, h = (f.h || 100) / 100, potH = h * 0.25;
-    const pot = new THREE.Mesh(new THREE.CylinderGeometry(w * 0.35, w * 0.28, potH, 12), mat(0x8b4513));
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(w * 0.35, w * 0.28, potH, 16), mat(getStylePreset().accent, { roughness: 0.9 }));
     pot.position.y = potH / 2; g.add(pot);
-    const leaves = new THREE.Mesh(new THREE.SphereGeometry(w * 0.5, 12, 8), mat(0x228b22));
+    const leaves = new THREE.Mesh(new THREE.SphereGeometry(w * 0.5, 16, 10), mat(0x3f6d4a, { roughness: 0.95 }));
     leaves.position.y = potH + w * 0.4 * 0.8; leaves.scale.y = 1.4; g.add(leaves);
   }
 
@@ -546,13 +872,13 @@
     const w = (f.w || 80) / 100, d = (f.d || 50) / 100, h = (f.h || 90) / 100;
     const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(col || 0xc9b896));
     body.position.y = h / 2; body.castShadow = true; g.add(body);
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.015, 0.015), mat(0xb8860b, { metalness: 0.5 }));
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(w * 0.34, 0.012, 0.015), mat(getStylePreset().metal, { metalness: 0.65, roughness: 0.3 }));
     handle.position.set(0, h * 0.6, d / 2 + 0.01); g.add(handle);
   }
 
   function buildFridge(g, f, col) {
     const w = (f.w || 70) / 100, d = (f.d || 70) / 100, h = (f.h || 180) / 100;
-    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(0xdddddd, { metalness: 0.3, roughness: 0.4 }));
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(col || getStylePreset().metal, { metalness: 0.3, roughness: 0.4 }));
     body.position.y = h / 2; body.castShadow = true; g.add(body);
     const seam = new THREE.Mesh(new THREE.BoxGeometry(w + 0.005, 0.005, d + 0.005), mat(0x999999));
     seam.position.y = h * 0.6; g.add(seam);
@@ -564,7 +890,7 @@
 
   function buildTV(g, f, col) {
     const w = (f.w || 120) / 100, h = (f.h || 70) / 100, d = (f.d || 8) / 100;
-    const screen = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(0x111111));
+    const screen = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(col || getStylePreset().metal));
     screen.position.set(0, h / 2 + 0.8, 0); g.add(screen);
     const bezel = new THREE.Mesh(new THREE.BoxGeometry(w - 0.02, h - 0.02, d + 0.01), mat(0x222222));
     bezel.position.copy(screen.position); g.add(bezel);
@@ -588,7 +914,7 @@
 
   function buildStove(g, f, col) {
     const w = (f.w || 60) / 100, d = (f.d || 60) / 100, h = (f.h || 85) / 100;
-    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(0x222222, { metalness: 0.3, roughness: 0.5 }));
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(col || getStylePreset().metal, { metalness: 0.3, roughness: 0.5 }));
     body.position.y = h / 2; body.castShadow = true; g.add(body);
     for (const px of [-0.12, 0.12]) for (const pz of [-0.12, 0.12]) {
       const burner = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.01, 16), mat(0x111111));
@@ -608,7 +934,7 @@
 
   function buildWasher(g, f, col) {
     const w = (f.w || 60) / 100, d = (f.d || 60) / 100, h = (f.h || 85) / 100;
-    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(0xeeeeee, { metalness: 0.2 }));
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(col || getStylePreset().metal, { metalness: 0.2 }));
     body.position.y = h / 2; body.castShadow = true; g.add(body);
     const door = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.02, 24, 1, false, -Math.PI * 0.4, Math.PI * 0.8), mat(0x4488cc, { metalness: 0.3, transparent: true, opacity: 0.6 }));
     door.rotation.x = Math.PI / 2; door.position.set(0, h * 0.6, d / 2 + 0.01); g.add(door);
@@ -621,6 +947,13 @@ function getObjPos(obj) {
   }
 
   // ---- Public API ----
+  function setBuildingViewMode(mode) {
+    buildingViewMode = mode === 'active' ? 'active' : 'all';
+    buildFromState();
+    requestAnimationFrame(() => controls?.fitHome?.());
+    return buildingViewMode;
+  }
+
   window._view3d = {
     init, buildFromState, onResize,
     setSunAngle: a => { sunAngle = a; updateSun(); },
@@ -629,17 +962,19 @@ function getObjPos(obj) {
     getSunIntensity: () => sunIntensity,
     enterWalkMode, exitWalkMode,
     isWalkMode: () => walkMode,
+    isCutaway: () => cutawayMode,
+    getBuildingViewMode: () => buildingViewMode,
+    setBuildingViewMode,
+    toggleBuildingViewMode: () => setBuildingViewMode(buildingViewMode === 'all' ? 'active' : 'all'),
+    toggleCutaway: () => { cutawayMode = !cutawayMode; updateCutaway(); return cutawayMode; },
     resetCamera: () => controls && controls.resetOrbit && controls.resetOrbit(),
+    fitHome: () => controls && controls.fitHome && controls.fitHome(),
     exportPNG: () => {
       renderer.render(scene, camera);
       return renderer.domElement.toDataURL("image/png");
     },
-    highlightObject: (id) => {
-      furnGroup.traverse(o => { if (o.userData?.id === id && o.material) o.material.emissive?.setHex(0x444400); });
-    },
-    clearHighlight: () => {
-      furnGroup.traverse(o => { if (o.material?.emissive) o.material.emissive.setHex(0x000000); });
-    }
+    highlightObject: id => { State.activeObject = id; State.activeType = 'furniture'; sync3DSelection(); },
+    clearHighlight: sync3DSelection,
   };
 
   if (window.THREE && document.getElementById("canvas-3d")) {
