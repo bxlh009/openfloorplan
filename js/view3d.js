@@ -328,7 +328,8 @@
         const point = floorPoint(e);
         const furniture = State.furnitures.find(item => item.id === furnitureDrag.id);
         if (point && furniture) {
-          const raw = { x: (point.x + furnitureDrag.offsetX) * 100, y: (point.z + furnitureDrag.offsetZ) * 100, w: furniture.w, d: furniture.d || furniture.h };
+          const footprint = ProjectModel.getRotatedFootprint(furniture.w, furniture.d || furniture.h, furniture.rotation);
+          const raw = { x: (point.x + furnitureDrag.offsetX) * 100, y: (point.z + furnitureDrag.offsetZ) * 100, w: footprint.w, d: footprint.d };
           const snapped = window._tools?.snapObject ? window._tools.snapObject(raw, furniture.id) : raw;
           furniture.x = Math.round(snapped.x);
           furniture.y = Math.round(snapped.y);
@@ -674,7 +675,9 @@
   function buildStair(stair) {
     const current = State.levels.find(level => level.id === stair.levelId) || ProjectModel.DEFAULT_LEVEL;
     const target = State.levels.find(level => level.id === stair.toLevelId);
-    const totalRise = Math.max(1, ((target?.elevation ?? (current.elevation + current.height + current.floorThickness)) - current.elevation) / 100);
+    const desiredRise = ((target?.elevation ?? (current.elevation + current.height + current.floorThickness)) - current.elevation) / 100;
+    const riseLimit = ProjectModel.getStairRiseLimit(State.walls, stair.levelId, current.height) / 100;
+    const totalRise = Math.max(0.01, Math.min(desiredRise, riseLimit));
     const stepCount = Math.max(2, Math.round(stair.stepCount || 16));
     const width = Math.max(0.5, (stair.width || 100) / 100);
     const length = Math.max(1, (stair.length || 300) / 100);

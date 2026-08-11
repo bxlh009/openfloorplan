@@ -44,7 +44,6 @@
   // Initial state
   const restoredDraft = restoreLocalDraft();
   if (restoredDraft) {
-    if (window.syncStyleUI) window.syncStyleUI();
     if (window.syncArchitectureUI) window.syncArchitectureUI();
     if (window.syncLevelsUI) window.syncLevelsUI();
     if (window.renderProps) window.renderProps();

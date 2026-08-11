@@ -135,6 +135,23 @@ test('stairs persist their adjacent-level relationship and editable concept dime
   });
 });
 
+test('rotated footprints swap furniture dimensions at a right angle', () => {
+  assert.deepEqual(ProjectModel.getRotatedFootprint(180, 85, Math.PI / 2), { w: 85, d: 180 });
+  assert.deepEqual(ProjectModel.getRotatedFootprint(180, 85, 0), { w: 180, d: 85 });
+});
+
+test('stair rise is capped by the shortest wall on its level', () => {
+  const walls = [
+    { id: 'wall_1', levelId: 'level_1', height: 280 },
+    { id: 'wall_2', levelId: 'level_1', height: 240 },
+    { id: 'wall_3', levelId: 'level_2', height: 180 },
+  ];
+
+  assert.equal(ProjectModel.getStairRiseLimit(walls, 'level_1', 280), 240);
+  assert.equal(ProjectModel.getStairRiseLimit(walls, 'level_2', 280), 180);
+  assert.equal(ProjectModel.getStairRiseLimit([], 'level_1', 260), 260);
+});
+
 test('local draft round trip restores the latest project without a backend', () => {
   const values = new Map();
   const storage = {

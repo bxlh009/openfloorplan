@@ -15,6 +15,8 @@ const State = {
   selectedObjects: [],
   selectionBox: null,
   nextId: 1,
+  pendingFurniture: null,
+  pendingFurnitureRotation: 0,
 
   zoom: 1,
   panX: 0,
@@ -71,10 +73,11 @@ function _restore(json) {
   State.activeType = null;
   State.selectedObjects = [];
   State.selectionBox = null;
+  State.pendingFurniture = null;
+  State.pendingFurnitureRotation = 0;
   requestRedraw();
   if (window.rebuild3D) window.rebuild3D();
   if (window.renderProps) window.renderProps();
-  if (window.syncStyleUI) window.syncStyleUI();
   if (window.syncArchitectureUI) window.syncArchitectureUI();
   if (window.syncLevelsUI) window.syncLevelsUI();
 }

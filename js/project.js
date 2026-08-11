@@ -312,6 +312,25 @@
     return areaInSquareCentimeters / 10000;
   }
 
+  function getRotatedFootprint(width, depth, rotation = 0) {
+    const w = Math.max(0, finiteNumber(width, 0));
+    const d = Math.max(0, finiteNumber(depth, 0));
+    const angle = finiteNumber(rotation, 0);
+    return {
+      w: Number((Math.abs(w * Math.cos(angle)) + Math.abs(d * Math.sin(angle))).toFixed(6)),
+      d: Number((Math.abs(w * Math.sin(angle)) + Math.abs(d * Math.cos(angle))).toFixed(6)),
+    };
+  }
+
+  function getStairRiseLimit(walls, levelId, fallback = 280) {
+    const defaultLimit = Math.max(1, finiteNumber(fallback, 280));
+    const heights = (Array.isArray(walls) ? walls : [])
+      .filter(wall => !levelId || wall.levelId === levelId)
+      .map(wall => finiteNumber(wall.height, defaultLimit))
+      .filter(height => height > 0);
+    return heights.length ? Math.min(defaultLimit, ...heights) : defaultLimit;
+  }
+
   function getPreviousLevel(levels, activeLevelId) {
     const list = Array.isArray(levels) ? levels : [];
     const active = list.find(level => level.id === activeLevelId) || list[0];
@@ -652,5 +671,5 @@
     });
   }
 
-  return { CURRENT_VERSION, LOCAL_DRAFT_KEY, DEFAULT_LEVEL, DEFAULT_STYLE, DEFAULT_ARCHITECTURE_STYLE, FURNITURE_DEFAULTS, STYLE_PRESETS, ARCHITECTURE_PRESETS, normalizeProject, serializeProject, saveLocalDraft, loadLocalDraft, getNextObjectId, getNextLevelId, getNextLevelElevation, duplicateLevel, computeFloorPolygons, computeFloorArea, getPreviousLevel, createHistory, computeWallSegments, computeCutawayWallIds, computeDoorPose, getOpeningOffset, placeOpeningOnWall, hitTestFurniture, getVisibleLevelIds, selectObjectsInRect, computeObjectSnap, filterFurnitureCatalog };
+  return { CURRENT_VERSION, LOCAL_DRAFT_KEY, DEFAULT_LEVEL, DEFAULT_STYLE, DEFAULT_ARCHITECTURE_STYLE, FURNITURE_DEFAULTS, STYLE_PRESETS, ARCHITECTURE_PRESETS, normalizeProject, serializeProject, saveLocalDraft, loadLocalDraft, getNextObjectId, getNextLevelId, getNextLevelElevation, duplicateLevel, computeFloorPolygons, computeFloorArea, getRotatedFootprint, getStairRiseLimit, getPreviousLevel, createHistory, computeWallSegments, computeCutawayWallIds, computeDoorPose, getOpeningOffset, placeOpeningOnWall, hitTestFurniture, getVisibleLevelIds, selectObjectsInRect, computeObjectSnap, filterFurnitureCatalog };
 });

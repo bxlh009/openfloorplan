@@ -175,15 +175,6 @@ body {
   color: var(--text);
 }
 
-.style-swatch {
-  display: block;
-  height: 26px;
-  margin-bottom: 4px;
-  border-radius: 5px;
-  background: linear-gradient(135deg, var(--style-wall) 0 52%, var(--style-floor) 52% 100%);
-  border: 1px solid rgba(0,0,0,0.08);
-}
-
 .architecture-swatch {
   display: block;
   height: 26px;

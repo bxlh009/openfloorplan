@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.5 - 2026-08-12
+
+- Add right-click 90° rotation for furniture placement and selected 2D furniture, with rotated preview and footprint-aware snapping.
+- Clamp 3D stair rise to the current level's wall height and expose the resulting maximum rise in the properties panel.
+- Remove the interior-style panel and its flow step while keeping legacy project style data readable.
+
 ## 0.5.4 - 2026-08-12
 
 - Show the immediate lower-floor footprint as a dashed 2D preview with an enclosed-area hint while editing an upper floor.

@@ -10,6 +10,7 @@
     State.style = data.style; State.architectureStyle = data.architectureStyle; State.sunAngle = data.sunAngle;
     State.nextId = ProjectModel.getNextObjectId(data);
     State.activeObject = null; State.activeType = null; State.selectedObjects = []; State.selectionBox = null;
+    State.pendingFurniture = null; State.pendingFurnitureRotation = 0;
   }
 
   function syncLevelsUI() {
@@ -87,7 +88,7 @@
       State.selectedTool = btn.dataset.tool;
       State.wallStart = null; State.wallDragging = false; State.wallEnd = null;
       clearSelection();
-      State.pendingFurniture = null; State.roomStart = null;
+      State.pendingFurniture = null; State.pendingFurnitureRotation = 0; State.roomStart = null;
       State.snapGuides = []; State.snapPreview = null;
       if (window._tools && window._tools.resetToolState) window._tools.resetToolState();
       updateToolLabel(); renderProps();
@@ -103,7 +104,8 @@
       if (!spec) return;
       document.querySelectorAll('[data-furniture]').forEach(button => button.classList.toggle('active', button === btn));
       State.pendingFurniture = type;
-      document.getElementById('status-info').textContent = t('message.place') + t(spec.labelKey || ('furniture.' + type));
+      State.pendingFurnitureRotation = 0;
+      document.getElementById('status-info').textContent = t('message.placeFurniture') + ' · ' + t(spec.labelKey || ('furniture.' + type));
     });
   });
 
@@ -134,28 +136,6 @@
   }
   window.filterFurnitureCatalog = filterFurnitureCatalog;
   filterFurnitureCatalog();
-
-  document.querySelectorAll('.style-card[data-style]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const style = btn.dataset.style;
-      if (!ProjectModel.STYLE_PRESETS[style] || style === State.style) return;
-      mutateProject(() => { State.style = style; });
-      syncStyleUI();
-      requestRedraw();
-      rebuild3D();
-    });
-  });
-
-  function syncStyleUI() {
-    document.querySelectorAll('.style-card[data-style]').forEach(btn => {
-      const active = btn.dataset.style === State.style;
-      btn.classList.toggle('active', active);
-      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-    });
-    document.body.dataset.interiorStyle = State.style;
-  }
-  window.syncStyleUI = syncStyleUI;
-  syncStyleUI();
 
   document.querySelectorAll('.style-card[data-architecture]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -295,7 +275,7 @@
       State.levels = [{ ...ProjectModel.DEFAULT_LEVEL }]; State.activeLevelId = ProjectModel.DEFAULT_LEVEL.id;
       State.walls = []; State.doors = []; State.windows = []; State.rooms = []; State.furnitures = []; State.dimensions = [];
       State.stairs = [];
-      clearSelection(); State.pendingFurniture = null; State.roomStart = null;
+      clearSelection(); State.pendingFurniture = null; State.pendingFurnitureRotation = 0; State.roomStart = null;
       State.panX = 0; State.panY = 0; State.zoom = 1;
     });
     syncLevelsUI(); rebuild3D(); renderProps();
@@ -323,7 +303,7 @@
           assignProject(data);
         });
         State.activeObject = null; State.activeType = null;
-        syncStyleUI(); syncArchitectureUI(); syncLevelsUI(); renderProps(); requestRedraw();
+        syncArchitectureUI(); syncLevelsUI(); renderProps(); requestRedraw();
         rebuild3D(); if (window._view3d) { window._view3d.setSunAngle(State.sunAngle); window._view3d.fitHome(); }
         document.getElementById('status-info').textContent = t('status.loadedProject');
       } catch (err) { alert(t('error.load') + err.message); }
@@ -401,6 +381,9 @@
       html += propNum('prop.length', obj.length, 120, 800, null, 10);
       html += propNum('prop.steps', obj.stepCount, 2, 40, null, 1);
       html += propNum('prop.rotation', ((obj.rotation || 0) * 180 / Math.PI).toFixed(0), 0, 360);
+      const level = State.levels.find(item => item.id === obj.levelId);
+      const maxRise = ProjectModel.getStairRiseLimit(State.walls, obj.levelId, level?.height || 280);
+      html += '<div class="prop-row"><span data-prop-key="prop.maxRise">' + t('prop.maxRise') + '</span><span>' + maxRise.toFixed(0) + ' cm</span></div>';
     }
     html += '<button id="btn-del" style="margin-top:8px;padding:4px 8px;background:#ff3b30;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;width:100%;">' + t('action.delete') + '</button>';
     box.innerHTML = html;

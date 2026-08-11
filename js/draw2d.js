@@ -293,7 +293,11 @@
       const p = toScreen(preview.x, preview.y);
       const w = preview.w * State.zoom; const h = preview.d * State.zoom;
       ctx.fillStyle = 'rgba(255,45,146,.10)'; ctx.strokeStyle = '#ff2d92'; ctx.lineWidth = 2;
-      ctx.fillRect(p.x - w / 2, p.y - h / 2, w, h); ctx.strokeRect(p.x - w / 2, p.y - h / 2, w, h);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(preview.rotation || 0);
+      ctx.fillRect(-w / 2, -h / 2, w, h); ctx.strokeRect(-w / 2, -h / 2, w, h);
+      ctx.restore();
       ctx.setLineDash([]); ctx.fillStyle = '#ff2d92'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
       ctx.fillText('⌁ ' + preview.label, p.x, p.y + 4);
     }
