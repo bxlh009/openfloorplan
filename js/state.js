@@ -80,9 +80,7 @@ function beginHistory() { return _history.begin(); }
 function localStorageOrNull() {
   try { return window.localStorage; } catch (_) { return null; }
 }
-function persistLocalDraft() {
-  const storage = localStorageOrNull();
-  const saved = Boolean(storage && ProjectModel.saveLocalDraft(storage, State));
+function updateAutosaveBadge(saved) {
   const badge = document.querySelector('.autosave-badge');
   if (badge) {
     const summary = [
@@ -97,6 +95,11 @@ function persistLocalDraft() {
     badge.textContent = saved ? t('status.autosaveSaved') + ' · ' + summary : t('status.autosaveUnavailable');
     badge.setAttribute('title', saved ? summary : t('status.autosaveUnavailable'));
   }
+}
+function persistLocalDraft() {
+  const storage = localStorageOrNull();
+  const saved = Boolean(storage && ProjectModel.saveLocalDraft(storage, State));
+  updateAutosaveBadge(saved);
   return saved;
 }
 function restoreLocalDraft() {
@@ -109,6 +112,7 @@ function restoreLocalDraft() {
   State.style = data.style; State.architectureStyle = data.architectureStyle; State.sunAngle = data.sunAngle;
   State.nextId = ProjectModel.getNextObjectId(data);
   _history.clear();
+  updateAutosaveBadge(true);
   return true;
 }
 function commitHistory(before) {
