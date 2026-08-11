@@ -426,6 +426,79 @@
     ctx.restore();
   }
 
+  function drawLowerLevelPreview() {
+    const lowerLevel = ProjectModel.getPreviousLevel(State.levels, State.activeLevelId);
+    if (!lowerLevel) return;
+    const walls = State.walls.filter(wall => wall.levelId === lowerLevel.id);
+    if (!walls.length) return;
+
+    const polygons = ProjectModel.computeFloorPolygons(walls);
+    const area = ProjectModel.computeFloorArea(walls);
+    const worldPoints = walls.flatMap(wall => [
+      { x: wall.x1, y: wall.y1 },
+      { x: wall.x2, y: wall.y2 },
+    ]);
+    const minX = Math.min(...worldPoints.map(point => point.x));
+    const maxX = Math.max(...worldPoints.map(point => point.x));
+    const minY = Math.min(...worldPoints.map(point => point.y));
+    const maxY = Math.max(...worldPoints.map(point => point.y));
+    const rect = canvas.getBoundingClientRect();
+    const center = toScreen((minX + maxX) / 2, (minY + maxY) / 2);
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = 'rgba(0,113,227,0.045)';
+    ctx.strokeStyle = 'rgba(0,113,227,0.52)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([8, 5]);
+
+    polygons.forEach(polygon => {
+      ctx.beginPath();
+      polygon.forEach((point, index) => {
+        const screen = toScreen(point.x, point.y);
+        if (index === 0) ctx.moveTo(screen.x, screen.y);
+        else ctx.lineTo(screen.x, screen.y);
+      });
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    });
+
+    // Keep the preview useful even when the lower floor is not closed yet.
+    ctx.globalAlpha = 0.72;
+    walls.forEach(wall => {
+      const a = toScreen(wall.x1, wall.y1);
+      const b = toScreen(wall.x2, wall.y2);
+      ctx.lineWidth = Math.max(2, Math.min(6, (wall.thickness || 20) * State.zoom));
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+    ctx.setLineDash([]);
+
+    const areaText = area == null
+      ? t('level.areaUnclosed')
+      : t('level.area').replace('{area}', area.toFixed(2));
+    const label = t('level.lowerPreview').replace('{level}', lowerLevel.name) + ' · ' + areaText;
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const metrics = ctx.measureText(label);
+    const halfWidth = metrics.width / 2 + 8;
+    const labelX = Math.max(halfWidth, Math.min(rect.width - halfWidth, center.x));
+    const labelY = Math.max(18, Math.min(rect.height - 10, center.y));
+    ctx.fillStyle = 'rgba(0,113,227,0.9)';
+    ctx.beginPath();
+    ctx.roundRect(labelX - halfWidth, labelY - 11, metrics.width + 16, 22, 5);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label, labelX, labelY);
+    ctx.restore();
+  }
+
   function drawSelectionMarquee() {
     const box = State.selectionBox;
     if (!box) return;
@@ -449,6 +522,7 @@
   function draw() {
     if (!canvas.width) return;
     drawGrid();
+    drawLowerLevelPreview();
 
     ctx.save();
     activeLevelItems(State.walls).forEach(drawWall);

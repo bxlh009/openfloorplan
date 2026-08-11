@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.4 - 2026-08-12
+
+- Show the immediate lower-floor footprint as a dashed 2D preview with an enclosed-area hint while editing an upper floor.
+- Give 3D floor slabs their configured thickness so the slab closes the gap between the lower wall top and the upper floor level.
+- Add regression coverage for lower-level lookup and floor footprint area reporting.
+
 ## 0.5.3 - 2026-08-11
 
 - Synchronize floor selection with the 3D camera: 1F focuses 1F, while an upper floor is shown at its physical elevation with lower floors as context.

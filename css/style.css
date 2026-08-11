@@ -74,6 +74,7 @@ body {
 .level-row { display: grid; grid-template-columns: 1fr 32px 32px; gap: 5px; }
 .level-row select, .level-row button { min-height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
 .level-summary { margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.level-preview-summary { margin-top: 6px; padding: 6px 7px; border: 1px dashed rgba(0,113,227,0.35); border-radius: 6px; background: rgba(0,113,227,0.06); color: var(--accent); font-size: 10px; line-height: 1.35; }
 .floor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
 .floor-grid button { border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--muted); padding: 8px 3px; font-size: 10px; cursor: pointer; }
 .floor-grid button.active { color: var(--accent); border-color: var(--accent); background: rgba(0,113,227,.08); }

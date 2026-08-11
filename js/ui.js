@@ -21,6 +21,19 @@
     const summary = document.getElementById('level-summary');
     if (summary && level) summary.textContent = t('level.summary')
       .replace('{elevation}', level.elevation).replace('{height}', level.height).replace('{thickness}', level.floorThickness);
+    const lowerLevel = ProjectModel.getPreviousLevel(State.levels, State.activeLevelId);
+    const preview = document.getElementById('level-preview-summary');
+    if (preview) {
+      if (!lowerLevel) {
+        preview.hidden = true;
+        preview.textContent = '';
+      } else {
+        const lowerWalls = State.walls.filter(wall => wall.levelId === lowerLevel.id);
+        const area = ProjectModel.computeFloorArea(lowerWalls);
+        preview.hidden = false;
+        preview.textContent = t('level.lowerPreview').replace('{level}', lowerLevel.name) + ' · ' + (area == null ? t('level.areaUnclosed') : t('level.area').replace('{area}', area.toFixed(2)));
+      }
+    }
     document.querySelectorAll('[data-floor-finish]').forEach(button => button.classList.toggle('active', level && button.dataset.floorFinish === level.floorFinish));
   }
   window.syncLevelsUI = syncLevelsUI;

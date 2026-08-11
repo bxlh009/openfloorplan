@@ -236,6 +236,29 @@ test('L-shaped connected rooms produce only their enclosed floor faces', () => {
   assert.equal(areas.reduce((sum, area) => sum + area, 0), 122500);
 });
 
+test('floor footprint area is reported in square meters and open walls have no area', () => {
+  const closed = [
+    { x1: 0, y1: 0, x2: 400, y2: 0 },
+    { x1: 400, y1: 0, x2: 400, y2: 300 },
+    { x1: 400, y1: 300, x2: 0, y2: 300 },
+    { x1: 0, y1: 300, x2: 0, y2: 0 },
+  ];
+
+  assert.equal(ProjectModel.computeFloorArea(closed), 12);
+  assert.equal(ProjectModel.computeFloorArea(closed.slice(0, 3)), null);
+});
+
+test('previous level resolves the nearest lower elevation', () => {
+  const levels = [
+    { id: 'level_1', elevation: 0 },
+    { id: 'level_2', elevation: 300 },
+    { id: 'level_3', elevation: 600 },
+  ];
+
+  assert.equal(ProjectModel.getPreviousLevel(levels, 'level_3').id, 'level_2');
+  assert.equal(ProjectModel.getPreviousLevel(levels, 'level_1'), null);
+});
+
 test('a door opening splits a wall into solid segments around the hole', () => {
   const wall = { id: 'wall_1', x1: 0, y1: 0, x2: 500, y2: 0, height: 280 };
   const doors = [{ id: 'door_1', wallId: 'wall_1', x: 250, y: 0, width: 100, height: 210 }];

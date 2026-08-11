@@ -302,6 +302,26 @@
     return faces;
   }
 
+  function computeFloorArea(walls) {
+    const polygons = computeFloorPolygons(walls);
+    if (!polygons.length) return null;
+    const areaInSquareCentimeters = polygons.reduce((total, polygon) => Math.abs(polygon.reduce((sum, point, index) => {
+      const next = polygon[(index + 1) % polygon.length];
+      return sum + point.x * next.y - next.x * point.y;
+    }, 0) / 2), 0);
+    return areaInSquareCentimeters / 10000;
+  }
+
+  function getPreviousLevel(levels, activeLevelId) {
+    const list = Array.isArray(levels) ? levels : [];
+    const active = list.find(level => level.id === activeLevelId) || list[0];
+    if (!active) return null;
+    const activeElevation = finiteNumber(active.elevation, 0);
+    const lower = list.filter(level => finiteNumber(level.elevation, 0) < activeElevation)
+      .sort((a, b) => finiteNumber(a.elevation, 0) - finiteNumber(b.elevation, 0));
+    return lower[lower.length - 1] || null;
+  }
+
   function createHistory({ capture, restore, limit = 50 }) {
     const undoStack = [];
     const redoStack = [];
@@ -632,5 +652,5 @@
     });
   }
 
-  return { CURRENT_VERSION, LOCAL_DRAFT_KEY, DEFAULT_LEVEL, DEFAULT_STYLE, DEFAULT_ARCHITECTURE_STYLE, FURNITURE_DEFAULTS, STYLE_PRESETS, ARCHITECTURE_PRESETS, normalizeProject, serializeProject, saveLocalDraft, loadLocalDraft, getNextObjectId, getNextLevelId, getNextLevelElevation, duplicateLevel, computeFloorPolygons, createHistory, computeWallSegments, computeCutawayWallIds, computeDoorPose, getOpeningOffset, placeOpeningOnWall, hitTestFurniture, getVisibleLevelIds, selectObjectsInRect, computeObjectSnap, filterFurnitureCatalog };
+  return { CURRENT_VERSION, LOCAL_DRAFT_KEY, DEFAULT_LEVEL, DEFAULT_STYLE, DEFAULT_ARCHITECTURE_STYLE, FURNITURE_DEFAULTS, STYLE_PRESETS, ARCHITECTURE_PRESETS, normalizeProject, serializeProject, saveLocalDraft, loadLocalDraft, getNextObjectId, getNextLevelId, getNextLevelElevation, duplicateLevel, computeFloorPolygons, computeFloorArea, getPreviousLevel, createHistory, computeWallSegments, computeCutawayWallIds, computeDoorPose, getOpeningOffset, placeOpeningOnWall, hitTestFurniture, getVisibleLevelIds, selectObjectsInRect, computeObjectSnap, filterFurnitureCatalog };
 });

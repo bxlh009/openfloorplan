@@ -84,6 +84,7 @@
     const cz = (bounds.minZ + bounds.maxZ) / 2;
     const currentLevel = level || State.levels.find(item => item.id === State.activeLevelId) || ProjectModel.DEFAULT_LEVEL;
     const baseY = levelElevation(currentLevel.id);
+    const floorThickness = Math.max(0.02, (currentLevel.floorThickness || 20) / 100);
     const tex = makeFloorTexture(currentLevel.floorFinish);
     const floorMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.05 });
     const polygons = ProjectModel.computeFloorPolygons(State.walls.filter(wall => wall.levelId === currentLevel.id));
@@ -95,17 +96,16 @@
           shape[method](point.x / 100, -point.y / 100);
         });
         shape.closePath();
-        const floor = new THREE.Mesh(new THREE.ShapeGeometry(shape), floorMat.clone());
+        const floor = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: floorThickness, bevelEnabled: false }), floorMat.clone());
         floor.rotation.x = -Math.PI / 2;
-        floor.position.y = baseY + 0.002;
+        floor.position.y = baseY - floorThickness + 0.002;
         floor.receiveShadow = true;
         floorGroup.add(floor);
       }
       return;
     }
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(fw, fd), floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.set(cx, baseY, cz);
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(fw, floorThickness, fd), floorMat);
+    floor.position.set(cx, baseY - floorThickness / 2, cz);
     floor.receiveShadow = true;
     floorGroup.add(floor);
   }
