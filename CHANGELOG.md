@@ -4,6 +4,7 @@
 
 - Save the latest in-memory draft when the page is reloaded or closed, covering the final edit boundary in browsers that end a page immediately.
 - Show whether local autosave succeeded and point users to JSON backup when browser storage is unavailable.
+- Synchronize the restored active-level list before redrawing, so restored objects are visible on the correct floor after refresh.
 - Add regression coverage for multi-level drafts, wall objects, and level-linked openings.
 
 ## 0.5.0 - 2026-08-11
