@@ -4,6 +4,8 @@
 
 Current version: `0.5.0`
 
+在线 Demo：由 GitHub Pages 从 `main` 分支自动部署；部署成功后访问 `https://bxlh009.github.io/openfloorplan/`。
+
 OpenFloorPlan 让用户直接在浏览器中绘制墙体、房间、门窗和家具，并实时查看 3D 预览。项目不要求后端、不上传设计文件，适合快速规划房间布局、制作平面草图和分享可复现的 JSON 项目文件。
 
 ## 功能

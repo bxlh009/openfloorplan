@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 - 2026-08-11
 
 - Add an eight-step house-design workflow from project setup through review and export.
 - Upgrade projects to JSON v3 with migratable levels, active-level isolation, add/switch/duplicate controls and safe wall-opening remapping.
