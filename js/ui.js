@@ -7,8 +7,10 @@
     State.levels = data.levels; State.activeLevelId = data.activeLevelId;
     State.walls = data.walls; State.doors = data.doors; State.windows = data.windows;
     State.rooms = data.rooms; State.furnitures = data.furnitures; State.dimensions = data.dimensions; State.stairs = data.stairs;
-    State.style = data.style; State.architectureStyle = data.architectureStyle; State.sunAngle = data.sunAngle;
+    State.style = data.style; State.architectureStyle = data.architectureStyle; State.renderMode = data.renderMode; State.lightingPreset = data.lightingPreset; State.cameraPreset = data.cameraPreset; State.savedCamera = data.savedCamera; State.sunAngle = data.sunAngle;
     State.nextId = ProjectModel.getNextObjectId(data);
+    State.activeObject = null; State.activeType = null; State.selectedObjects = []; State.selectionBox = null;
+    State.pendingFurniture = null; State.pendingFurnitureRotation = 0;
   }
 
   function syncLevelsUI() {
@@ -20,14 +22,38 @@
     const summary = document.getElementById('level-summary');
     if (summary && level) summary.textContent = t('level.summary')
       .replace('{elevation}', level.elevation).replace('{height}', level.height).replace('{thickness}', level.floorThickness);
+    const lowerLevel = ProjectModel.getPreviousLevel(State.levels, State.activeLevelId);
+    const preview = document.getElementById('level-preview-summary');
+    if (preview) {
+      if (!lowerLevel) {
+        preview.hidden = true;
+        preview.textContent = '';
+      } else {
+        const lowerWalls = State.walls.filter(wall => wall.levelId === lowerLevel.id);
+        const area = ProjectModel.computeFloorArea(lowerWalls);
+        preview.hidden = false;
+        preview.textContent = t('level.lowerPreview').replace('{level}', lowerLevel.name) + ' · ' + (area == null ? t('level.areaUnclosed') : t('level.area').replace('{area}', area.toFixed(2)));
+      }
+    }
     document.querySelectorAll('[data-floor-finish]').forEach(button => button.classList.toggle('active', level && button.dataset.floorFinish === level.floorFinish));
+    const materialSelect = document.getElementById('material-preset-select');
+    if (materialSelect) materialSelect.value = level?.materialId || 'oakLight';
+    const ceiling = { ...ProjectModel.DEFAULT_CEILING, ...(level?.ceiling || {}) };
+    document.getElementById('ceiling-enabled').checked = ceiling.enabled;
+    document.getElementById('ceiling-drop').value = ceiling.drop;
+    document.getElementById('ceiling-downlights').value = ceiling.downlights;
+    document.getElementById('ceiling-cove').checked = ceiling.coveLight;
   }
   window.syncLevelsUI = syncLevelsUI;
 
   document.getElementById('level-select').addEventListener('change', event => {
     State.activeLevelId = event.target.value;
-    State.activeObject = null; State.activeType = null;
-    persistLocalDraft(); syncLevelsUI(); requestRedraw(); rebuild3D(); renderProps();
+    clearSelection();
+    persistLocalDraft(); syncLevelsUI(); requestRedraw();
+    if (window._view3d?.focusActiveLevel) window._view3d.focusActiveLevel();
+    else rebuild3D();
+    if (window.refreshDynamicControls) window.refreshDynamicControls();
+    renderProps();
   });
   document.getElementById('btn-level-add').addEventListener('click', () => {
     mutateProject(() => {
@@ -50,6 +76,81 @@
     mutateProject(() => { level.floorFinish = button.dataset.floorFinish; });
     syncLevelsUI(); rebuild3D();
   }));
+  function getActiveMaterialTarget() {
+    if (State.activeType === 'wall') return State.walls.find(item => item.id === State.activeObject) || null;
+    if (State.activeType === 'furniture') return State.furnitures.find(item => item.id === State.activeObject) || null;
+    return null;
+  }
+  function applySelectedMaterial(materialId) {
+    const target = getActiveMaterialTarget();
+    if (!target) {
+      document.getElementById('status-info').textContent = t('message.selectMaterialTarget');
+      return;
+    }
+    mutateProject(() => { target.materialId = materialId; });
+    rebuild3D(); requestRedraw(); renderProps();
+  }
+  document.getElementById('btn-material-floor').addEventListener('click', () => {
+    const level = State.levels.find(item => item.id === State.activeLevelId);
+    if (!level) return;
+    mutateProject(() => { level.materialId = document.getElementById('material-preset-select').value; });
+    syncLevelsUI(); rebuild3D();
+  });
+  document.getElementById('btn-material-selected').addEventListener('click', () => {
+    applySelectedMaterial(document.getElementById('material-preset-select').value);
+  });
+  document.getElementById('btn-material-pick').addEventListener('click', () => {
+    const target = getActiveMaterialTarget();
+    if (!target?.materialId) {
+      document.getElementById('status-info').textContent = t('message.noMaterialToPick');
+      return;
+    }
+    State.materialBrushId = target.materialId;
+    document.getElementById('material-preset-select').value = target.materialId;
+    document.getElementById('status-info').textContent = t('message.materialPicked');
+  });
+  document.getElementById('btn-material-brush').addEventListener('click', () => {
+    const target = getActiveMaterialTarget();
+    if (!target) {
+      document.getElementById('status-info').textContent = t('message.selectMaterialTarget');
+      return;
+    }
+    const materialId = State.materialBrushId || document.getElementById('material-preset-select').value;
+    mutateProject(() => { Object.assign(target, ProjectModel.applyMaterialBrush({ materialId }, target)); });
+    rebuild3D(); requestRedraw(); renderProps();
+  });
+  function updateActiveCeiling(patch) {
+    const level = State.levels.find(item => item.id === State.activeLevelId);
+    if (!level) return;
+    mutateProject(() => { level.ceiling = { ...ProjectModel.DEFAULT_CEILING, ...(level.ceiling || {}), ...patch }; });
+    syncLevelsUI(); rebuild3D();
+  }
+  document.getElementById('ceiling-enabled').addEventListener('change', event => updateActiveCeiling({ enabled: event.target.checked }));
+  document.getElementById('ceiling-drop').addEventListener('change', event => updateActiveCeiling({ drop: Math.max(0, Math.min(80, Number(event.target.value) || 0)) }));
+  document.getElementById('ceiling-downlights').addEventListener('change', event => updateActiveCeiling({ downlights: Math.max(0, Math.min(12, Math.round(Number(event.target.value) || 0))) }));
+  document.getElementById('ceiling-cove').addEventListener('change', event => updateActiveCeiling({ coveLight: event.target.checked }));
+  document.querySelectorAll('[data-room-template]').forEach(button => button.addEventListener('click', () => {
+    const level = State.levels.find(item => item.id === State.activeLevelId);
+    if (!level) return;
+    const activeWalls = State.walls.filter(item => item.levelId === State.activeLevelId);
+    const wallXs = activeWalls.flatMap(item => [Number(item.x1) || 0, Number(item.x2) || 0]);
+    const wallYs = activeWalls.flatMap(item => [Number(item.y1) || 0, Number(item.y2) || 0]);
+    const originX = wallXs.length ? Math.max(...wallXs) + 100 : 0;
+    const originY = wallYs.length ? Math.min(...wallYs) : 0;
+    const created = ProjectModel.createRoomTemplate(button.dataset.roomTemplate, {
+      levelId: State.activeLevelId, originX, originY, startId: State.nextId, height: level.height,
+    });
+    mutateProject(() => {
+      State.walls.push(...created.walls);
+      State.rooms.push(...created.rooms);
+      State.furnitures.push(...created.furnitures);
+      State.doors.push(...created.doors);
+      State.windows.push(...created.windows);
+      State.nextId = created.nextId;
+    });
+    clearSelection(); syncLevelsUI(); requestRedraw(); rebuild3D();
+    document.getElementById('status-info').textContent = t('message.roomTemplateAdded');
+  }));
   document.querySelectorAll('[data-flow-target]').forEach(button => button.addEventListener('click', () => {
     document.querySelectorAll('[data-flow-target]').forEach(item => item.classList.toggle('active', item === button));
     document.getElementById('panel-' + button.dataset.flowTarget)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -68,13 +169,15 @@
       btn.classList.add('active');
       State.selectedTool = btn.dataset.tool;
       State.wallStart = null; State.wallDragging = false; State.wallEnd = null;
-      State.activeObject = null; State.activeType = null;
-      State.pendingFurniture = null; State.roomStart = null;
+      clearSelection();
+      State.pendingFurniture = null; State.pendingFurnitureRotation = 0; State.roomStart = null;
       State.snapGuides = []; State.snapPreview = null;
       if (window._tools && window._tools.resetToolState) window._tools.resetToolState();
       updateToolLabel(); renderProps();
     });
   });
+
+  document.getElementById('btn-delete-selection').addEventListener('click', () => deleteSelectedObjects());
 
   document.querySelectorAll('[data-furniture]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -83,7 +186,8 @@
       if (!spec) return;
       document.querySelectorAll('[data-furniture]').forEach(button => button.classList.toggle('active', button === btn));
       State.pendingFurniture = type;
-      document.getElementById('status-info').textContent = t('message.place') + t(spec.labelKey || ('furniture.' + type));
+      State.pendingFurnitureRotation = 0;
+      document.getElementById('status-info').textContent = t('message.placeFurniture') + ' · ' + t(spec.labelKey || ('furniture.' + type));
     });
   });
 
@@ -115,28 +219,6 @@
   window.filterFurnitureCatalog = filterFurnitureCatalog;
   filterFurnitureCatalog();
 
-  document.querySelectorAll('.style-card[data-style]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const style = btn.dataset.style;
-      if (!ProjectModel.STYLE_PRESETS[style] || style === State.style) return;
-      mutateProject(() => { State.style = style; });
-      syncStyleUI();
-      requestRedraw();
-      rebuild3D();
-    });
-  });
-
-  function syncStyleUI() {
-    document.querySelectorAll('.style-card[data-style]').forEach(btn => {
-      const active = btn.dataset.style === State.style;
-      btn.classList.toggle('active', active);
-      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-    });
-    document.body.dataset.interiorStyle = State.style;
-  }
-  window.syncStyleUI = syncStyleUI;
-  syncStyleUI();
-
   document.querySelectorAll('.style-card[data-architecture]').forEach(btn => {
     btn.addEventListener('click', () => {
       const style = btn.dataset.architecture;
@@ -167,7 +249,7 @@
     let bar = document.getElementById('view3d-controls');
     if (!bar) {
       bar = Object.assign(document.createElement('div'), { id: 'view3d-controls' });
-      bar.style.cssText = 'position:absolute;top:8px;right:8px;display:flex;gap:6px;z-index:10;background:rgba(255,255,255,0.85);padding:6px 8px;border-radius:6px;font-size:11px;align-items:center;flex-wrap:wrap;max-width:260px;';
+      bar.style.cssText = 'position:absolute;top:8px;right:8px;display:flex;gap:6px;z-index:10;background:rgba(255,255,255,0.88);padding:6px 8px;border-radius:8px;font-size:11px;align-items:center;flex-wrap:wrap;max-width:430px;';
       const view3d = document.getElementById('view-3d');
       if (view3d) { view3d.style.position = 'relative'; view3d.appendChild(bar); }
     }
@@ -177,10 +259,19 @@
       '<span style="font-weight:600;">' + t('control.sun') + '</span>' +
       '<input type="range" min="10" max="89" value="' + State.sunAngle + '" id="sun-angle" style="width:70px;">' +
       '<span id="sun-val" style="width:28px;text-align:right;">' + State.sunAngle + '°</span>' +
+      '<button id="btn-render-mode" aria-pressed="' + (State.renderMode === 'photo') + '" style="padding:2px 8px;' + (State.renderMode === 'photo' ? 'background:#8a5a35;color:#fff;' : '') + '">' + t(State.renderMode === 'photo' ? 'control.photoMode' : 'control.realtimeMode') + '</button>' +
+      '<select id="lighting-preset" aria-label="' + t('control.lighting') + '" style="padding:2px 5px;font-size:11px;">' +
+        ['daylight', 'warmNight', 'studio'].map(id => '<option value="' + id + '"' + (State.lightingPreset === id ? ' selected' : '') + '>' + t('lighting.' + id) + '</option>').join('') +
+      '</select>' +
+      '<select id="camera-preset" aria-label="' + t('control.camera') + '" style="padding:2px 5px;font-size:11px;">' +
+        ['eye', 'bird', 'isometric', 'exterior'].map(id => '<option value="' + id + '"' + (State.cameraPreset === id ? ' selected' : '') + '>' + t('camera.' + id) + '</option>').join('') +
+      '</select>' +
+      '<button id="btn-camera-save" style="padding:2px 8px;">' + t('camera.save') + '</button>' +
+      '<button id="btn-camera-restore"' + (State.savedCamera ? '' : ' disabled') + ' style="padding:2px 8px;">' + t('camera.restore') + '</button>' +
       '<button id="btn-building-view" aria-pressed="' + wholeBuilding + '" style="padding:2px 8px;' + (wholeBuilding ? 'background:#34a853;color:#fff;' : '') + '">' + t(wholeBuilding ? 'control.wholeBuilding' : 'control.activeLevel') + '</button>' +
       '<button id="btn-cutaway" aria-pressed="' + cutaway + '" style="padding:2px 8px;' + (cutaway ? 'background:#0071e3;color:#fff;' : '') + '">' + t(cutaway ? 'control.cutaway' : 'control.exterior') + '</button>' +
       '<button id="btn-walk" style="padding:2px 8px;">' + t('control.walk') + '</button>' +
-      '<button id="btn-png" style="padding:2px 8px;">' + t('control.exportPng') + '</button>';
+      '<button id="btn-png" style="padding:2px 8px;">' + t('control.exportPngHD') + '</button>';
     const slider = document.getElementById('sun-angle');
     slider.oninput = () => {
       State.sunAngle = parseFloat(slider.value);
@@ -196,6 +287,34 @@
       if (window._view3d) window._view3d.toggleCutaway();
       setupControls();
     };
+    document.getElementById('btn-render-mode').onclick = () => {
+      const before = beginHistory();
+      State.renderMode = State.renderMode === 'photo' ? 'realtime' : 'photo';
+      commitHistory(before);
+      if (window._view3d) window._view3d.setRenderMode(State.renderMode);
+      setupControls();
+    };
+    document.getElementById('lighting-preset').onchange = event => {
+      const before = beginHistory();
+      State.lightingPreset = event.target.value;
+      State.sunAngle = ProjectModel.LIGHTING_PRESETS[State.lightingPreset].sunAngle;
+      commitHistory(before);
+      if (window._view3d) window._view3d.setLightingPreset(State.lightingPreset);
+      setupControls();
+    };
+    document.getElementById('camera-preset').onchange = event => {
+      const before = beginHistory();
+      State.cameraPreset = event.target.value;
+      commitHistory(before);
+      window._view3d?.setCameraPreset(State.cameraPreset);
+    };
+    document.getElementById('btn-camera-save').onclick = () => {
+      const before = beginHistory();
+      window._view3d?.saveCurrentCamera();
+      commitHistory(before);
+      setupControls();
+    };
+    document.getElementById('btn-camera-restore').onclick = () => window._view3d?.restoreSavedCamera();
     document.getElementById('btn-building-view').onclick = () => {
       if (window._view3d) window._view3d.toggleBuildingViewMode();
       setupControls();
@@ -207,7 +326,7 @@
     document.getElementById('btn-png').onclick = () => {
       if (window._view3d) {
         const url = window._view3d.exportPNG();
-        const a = document.createElement('a'); a.href = url; a.download = 'plan-' + new Date().toISOString().slice(0,10) + '.png'; a.click();
+        const a = document.createElement('a'); a.href = url; a.download = 'plan-hd-' + new Date().toISOString().slice(0,10) + '.png'; a.click();
       }
     };
   }
@@ -275,7 +394,7 @@
       State.levels = [{ ...ProjectModel.DEFAULT_LEVEL }]; State.activeLevelId = ProjectModel.DEFAULT_LEVEL.id;
       State.walls = []; State.doors = []; State.windows = []; State.rooms = []; State.furnitures = []; State.dimensions = [];
       State.stairs = [];
-      State.activeObject = null; State.activeType = null; State.pendingFurniture = null; State.roomStart = null;
+      clearSelection(); State.pendingFurniture = null; State.pendingFurnitureRotation = 0; State.roomStart = null;
       State.panX = 0; State.panY = 0; State.zoom = 1;
     });
     syncLevelsUI(); rebuild3D(); renderProps();
@@ -303,7 +422,7 @@
           assignProject(data);
         });
         State.activeObject = null; State.activeType = null;
-        syncStyleUI(); syncArchitectureUI(); syncLevelsUI(); renderProps(); requestRedraw();
+        syncArchitectureUI(); syncLevelsUI(); renderProps(); requestRedraw();
         rebuild3D(); if (window._view3d) { window._view3d.setSunAngle(State.sunAngle); window._view3d.fitHome(); }
         document.getElementById('status-info').textContent = t('status.loadedProject');
       } catch (err) { alert(t('error.load') + err.message); }
@@ -318,8 +437,24 @@
   }
   window.updateToolLabel = updateToolLabel;
 
+  function syncSelectionUI() {
+    const button = document.getElementById('btn-delete-selection');
+    if (!button) return;
+    const count = Array.isArray(State.selectedObjects) ? State.selectedObjects.length : 0;
+    button.disabled = count === 0;
+    button.textContent = count ? t('action.deleteSelection') + ' (' + count + ')' : t('action.deleteSelection');
+    button.title = count ? t('status.selectionCount').replace('{count}', String(count)) : t('action.deleteSelection');
+  }
+  window.syncSelectionUI = syncSelectionUI;
+
   function renderProps() {
     const box = document.getElementById("props");
+    syncSelectionUI();
+    const selectedCount = Array.isArray(State.selectedObjects) ? State.selectedObjects.length : 0;
+    if (selectedCount > 1) {
+      box.innerHTML = '<div class="selection-banner"><span>' + t('status.selected') + '</span><strong>' + t('status.selectionCount').replace('{count}', String(selectedCount)) + '</strong><code>' + t('hint.multiSelection') + '</code></div>';
+      return;
+    }
     if (!State.activeObject) { box.innerHTML = '<p class="hint">' + t('hint.selectObject') + '</p>'; return; }
     let obj = null, type = State.activeType;
     if (type === "wall") obj = State.walls.find(w => w.id === State.activeObject);
@@ -365,16 +500,14 @@
       html += propNum('prop.length', obj.length, 120, 800, null, 10);
       html += propNum('prop.steps', obj.stepCount, 2, 40, null, 1);
       html += propNum('prop.rotation', ((obj.rotation || 0) * 180 / Math.PI).toFixed(0), 0, 360);
+      const level = State.levels.find(item => item.id === obj.levelId);
+      const maxRise = ProjectModel.getStairRiseLimit(State.walls, obj.levelId, level?.height || 280);
+      html += '<div class="prop-row"><span data-prop-key="prop.maxRise">' + t('prop.maxRise') + '</span><span>' + maxRise.toFixed(0) + ' cm</span></div>';
     }
     html += '<button id="btn-del" style="margin-top:8px;padding:4px 8px;background:#ff3b30;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;width:100%;">' + t('action.delete') + '</button>';
     box.innerHTML = html;
     document.getElementById("btn-del").addEventListener("click", () => {
-      const arr = (type === "wall" || type === "wall-endpoint") ? State.walls : type === "door" ? State.doors : type === "window" ? State.windows : type === 'stair' ? State.stairs : State.furnitures;
-      mutateProject(() => {
-        const idx = arr.findIndex(o => o.id === State.activeObject);
-        if (idx >= 0) arr.splice(idx, 1);
-      });
-      State.activeObject = null; State.activeType = null; rebuild3D(); renderProps();
+      deleteSelectedObjects();
     });
     bindPropInputs();
   }

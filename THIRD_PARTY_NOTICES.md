@@ -2,7 +2,7 @@
 
 ## Three.js 0.160.0
 
-`js/vendor/three.min.js` is a minified distribution of [Three.js](https://threejs.org/), version 0.160.0.
+`js/vendor/three.min.js`, `js/vendor/three.module.js`, `js/vendor/loaders/GLTFLoader.js` and `js/vendor/utils/BufferGeometryUtils.js` are distributions or examples from [Three.js](https://threejs.org/), version 0.160.0.
 
 Three.js is available under the MIT License:
 
@@ -23,3 +23,15 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 ```
+
+## ambientCG — WoodFloor040
+
+`assets/materials/wood_floor_040/` contains the 1K color, OpenGL normal and roughness maps from [WoodFloor040](https://ambientcg.com/view?id=WoodFloor040).
+
+ambientCG publishes this asset under [CC0](https://docs.ambientcg.com/license/). It may be used, modified and redistributed for any purpose without attribution; this notice is retained for provenance.
+
+## Poly Haven — furniture models
+
+`assets/models/coffee_table_round_01/` and `assets/models/modern_wooden_cabinet/` contain the 1K glTF releases of [Coffee Table Round 01](https://polyhaven.com/a/coffee_table_round_01) and [Modern Wooden Cabinet](https://polyhaven.com/a/modern_wooden_cabinet).
+
+Poly Haven publishes these assets under [CC0](https://polyhaven.com/license). They may be used, modified and redistributed for any purpose without attribution; this notice is retained for provenance.

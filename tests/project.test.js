@@ -12,7 +12,10 @@ test('v1 project files migrate to the v3 level, furniture and style contract', (
   const project = ProjectModel.normalizeProject(legacy);
 
   assert.equal(project.version, 3);
-  assert.deepEqual(project.levels, [{ id: 'level_1', name: '1F', elevation: 0, floorThickness: 20, height: 280, floorFinish: 'wood' }]);
+  assert.deepEqual(project.levels, [{
+    id: 'level_1', name: '1F', elevation: 0, floorThickness: 20, height: 280, floorFinish: 'wood', materialId: null,
+    ceiling: { enabled: false, drop: 15, thickness: 8, coveLight: false, downlights: 0, color: '#f7f3ed' },
+  }]);
   assert.equal(project.activeLevelId, 'level_1');
   assert.ok(project.walls.every(item => item.levelId === 'level_1'));
   assert.equal(project.style, 'modern');
@@ -39,8 +42,11 @@ test('six local style presets expose a complete whole-home material palette', ()
     assert.match(preset.wood, /^#[0-9a-f]{6}$/i);
     assert.match(preset.fabric, /^#[0-9a-f]{6}$/i);
     assert.match(preset.metal, /^#[0-9a-f]{6}$/i);
+    assert.match(preset.roof, /^#[0-9a-f]{6}$/i);
+    assert.match(preset.ground, /^#[0-9a-f]{6}$/i);
     assert.match(preset.sky, /^#[0-9a-f]{6}$/i);
     assert.match(preset.sun, /^#[0-9a-f]{6}$/i);
+    assert.ok(preset.wallRoughness >= 0.5 && preset.wallRoughness <= 1);
     assert.match(preset.furnitureProfile, /^(low|tapered|floor|organic|frame|classic)$/);
     furnitureProfiles.add(preset.furnitureProfile);
   }
@@ -75,6 +81,7 @@ test('saving and loading preserves interior and architectural styles with every 
   const saved = ProjectModel.serializeProject({
     style: 'wabiSabi',
     architectureStyle: 'japanese',
+    renderMode: 'photo',
     sunAngle: 42,
     walls: [{ id: 'wall_1' }],
     doors: [{ id: 'door_1' }],
@@ -88,6 +95,7 @@ test('saving and loading preserves interior and architectural styles with every 
   assert.equal(saved.version, 3);
   assert.equal(loaded.style, 'wabiSabi');
   assert.equal(loaded.architectureStyle, 'japanese');
+  assert.equal(loaded.renderMode, 'photo');
   for (const key of ['walls', 'doors', 'windows', 'rooms', 'furnitures', 'dimensions']) {
     assert.equal(loaded[key].length, 1, key);
   }
@@ -135,6 +143,139 @@ test('stairs persist their adjacent-level relationship and editable concept dime
   });
 });
 
+test('render quality modes are explicit and invalid legacy values fall back to realtime', () => {
+  assert.deepEqual(Object.keys(ProjectModel.RENDER_PRESETS), ['realtime', 'photo']);
+  assert.equal(ProjectModel.RENDER_PRESETS.realtime.pixelRatioCap, 1.75);
+  assert.equal(ProjectModel.RENDER_PRESETS.photo.pixelRatioCap, 2.5);
+  assert.equal(ProjectModel.RENDER_PRESETS.realtime.shadowMapSize, 2048);
+  assert.equal(ProjectModel.RENDER_PRESETS.photo.shadowMapSize, 4096);
+  assert.equal(ProjectModel.RENDER_PRESETS.photo.anisotropy, 16);
+  assert.equal(ProjectModel.RENDER_PRESETS.photo.exportScale, 2);
+  assert.ok(ProjectModel.RENDER_PRESETS.photo.exposure <= 1.05);
+  assert.ok(ProjectModel.RENDER_PRESETS.photo.sun <= 1.05);
+  assert.ok(ProjectModel.RENDER_PRESETS.photo.hemisphere > ProjectModel.RENDER_PRESETS.photo.ambient);
+  assert.equal(ProjectModel.normalizeProject({ renderMode: 'unknown' }).renderMode, 'realtime');
+});
+
+test('high resolution export preserves aspect ratio and respects the pixel budget', () => {
+  assert.deepEqual(ProjectModel.computeRenderExportSize(800, 600, 2, 16_000_000), { width: 1600, height: 1200, scale: 2 });
+  const capped = ProjectModel.computeRenderExportSize(4000, 3000, 2, 16_000_000);
+  assert.deepEqual({ width: capped.width, height: capped.height }, { width: 4618, height: 3464 });
+  assert.ok(capped.scale < 2);
+});
+
+test('lighting presets persist independently from render quality', () => {
+  assert.deepEqual(Object.keys(ProjectModel.LIGHTING_PRESETS), ['daylight', 'warmNight', 'studio']);
+  const saved = ProjectModel.serializeProject({ renderMode: 'realtime', lightingPreset: 'warmNight' });
+  assert.equal(saved.renderMode, 'realtime');
+  assert.equal(saved.lightingPreset, 'warmNight');
+  assert.equal(ProjectModel.normalizeProject({ lightingPreset: 'invalid' }).lightingPreset, 'daylight');
+});
+
+test('camera presets and one saved custom view survive project round trips', () => {
+  assert.deepEqual(Object.keys(ProjectModel.CAMERA_PRESETS), ['eye', 'bird', 'isometric', 'exterior']);
+  const savedCamera = { position: [4, 2.2, 6], target: [1, 1, 1], fov: 52 };
+  const project = ProjectModel.normalizeProject({ cameraPreset: 'bird', savedCamera });
+  assert.equal(project.cameraPreset, 'bird');
+  assert.deepEqual(project.savedCamera, savedCamera);
+  assert.equal(ProjectModel.normalizeProject({ cameraPreset: 'invalid', savedCamera: { position: [1] } }).cameraPreset, 'isometric');
+  assert.equal(ProjectModel.normalizeProject({ savedCamera: { position: [1] } }).savedCamera, null);
+});
+
+test('each level owns a safe parameterized ceiling and lighting layout', () => {
+  const project = ProjectModel.normalizeProject({ levels: [{ id: 'level_1', ceiling: { enabled: true, drop: 18, thickness: 7, coveLight: true, downlights: 6, color: '#f2eee8' } }] });
+  assert.deepEqual(project.levels[0].ceiling, { enabled: true, drop: 18, thickness: 7, coveLight: true, downlights: 6, color: '#f2eee8' });
+  const legacy = ProjectModel.normalizeProject({});
+  assert.equal(legacy.levels[0].ceiling.enabled, false);
+  assert.equal(ProjectModel.normalizeProject({ levels: [{ ceiling: { downlights: 99, drop: -2 } }] }).levels[0].ceiling.downlights, 12);
+});
+
+test('real-scale material presets apply consistently through the material brush', () => {
+  assert.deepEqual(Object.keys(ProjectModel.MATERIAL_PRESETS), ['oakLight', 'oakWarm', 'walnut', 'travertine', 'microcement', 'linen']);
+  for (const material of Object.values(ProjectModel.MATERIAL_PRESETS)) {
+    assert.ok(material.scaleCm >= 10);
+    assert.ok(material.roughness >= 0 && material.roughness <= 1);
+  }
+  const source = { id: 'wall_1', materialId: 'travertine' };
+  assert.deepEqual(ProjectModel.applyMaterialBrush(source, { id: 'wall_2' }), { id: 'wall_2', materialId: 'travertine' });
+  assert.equal(ProjectModel.normalizeProject({ walls: [{ materialId: 'invalid' }] }).walls[0].materialId, null);
+});
+
+test('modern floor materials use long-plank or large-slab proportions instead of square repeats', () => {
+  assert.equal(ProjectModel.MATERIAL_PRESETS.oakLight.plankLengthCm, 180);
+  assert.equal(ProjectModel.MATERIAL_PRESETS.oakLight.plankWidthCm, 18);
+  assert.deepEqual(ProjectModel.getMaterialRepeat('oakLight', 3.6, 1.44), { x: 2, y: 2 });
+  assert.deepEqual(ProjectModel.getMaterialRepeat('travertine', 3.6, 2.4), { x: 3, y: 4 });
+  assert.equal(ProjectModel.getDefaultFloorMaterialId('wood'), 'oakLight');
+  assert.equal(ProjectModel.getDefaultFloorMaterialId('tile'), 'travertine');
+  assert.equal(ProjectModel.getDefaultFloorMaterialId('concrete'), 'microcement');
+  for (const file of ['WoodFloor040_1K-JPG_Color.jpg', 'WoodFloor040_1K-JPG_NormalGL.jpg', 'WoodFloor040_1K-JPG_Roughness.jpg']) {
+    const assetPath = path.join(__dirname, '..', 'assets', 'materials', 'wood_floor_040', file);
+    assert.ok(fs.statSync(assetPath).size > 100_000, file);
+  }
+});
+
+test('photo preview ships self-contained glTF furniture with every referenced buffer and texture', () => {
+  for (const [folder, gltfFile] of [
+    ['coffee_table_round_01', 'coffee_table_round_01_1k.gltf'],
+    ['modern_wooden_cabinet', 'modern_wooden_cabinet_1k.gltf'],
+  ]) {
+    const modelRoot = path.join(__dirname, '..', 'assets', 'models', folder);
+    const gltf = JSON.parse(fs.readFileSync(path.join(modelRoot, gltfFile), 'utf8'));
+    const referenced = [
+      ...(gltf.buffers || []).map(item => item.uri),
+      ...(gltf.images || []).map(item => item.uri),
+    ].filter(Boolean);
+    assert.ok(referenced.length >= 2, folder);
+    for (const relativePath of referenced) assert.ok(fs.statSync(path.join(modelRoot, relativePath)).size > 1_000, relativePath);
+  }
+});
+
+test('furniture grounding always translates its lowest visible geometry onto the floor', () => {
+  assert.equal(ProjectModel.computeGroundingTranslation(0.38), -0.38);
+  assert.equal(ProjectModel.computeGroundingTranslation(-0.02), 0.02);
+  assert.equal(ProjectModel.computeGroundingTranslation(0), 0);
+  assert.equal(ProjectModel.computeGroundingTranslation(Number.NaN), 0);
+});
+
+test('shadow camera spends its resolution on the house instead of a fixed 120 metre field', () => {
+  assert.equal(ProjectModel.computeShadowCameraExtent({ minX: 0, maxX: 10, minZ: 0, maxZ: 8 }), 8);
+  assert.equal(ProjectModel.computeShadowCameraExtent({ minX: 0, maxX: 2, minZ: 0, maxZ: 1 }), 4);
+  assert.equal(ProjectModel.computeShadowCameraExtent({ minX: -80, maxX: 80, minZ: -2, maxZ: 2 }), 45);
+});
+
+test('physical practical lights use visible candela-scale intensities in both render modes', () => {
+  assert.equal(ProjectModel.computePracticalLightIntensity('room', 1, 'photo'), 48);
+  assert.equal(ProjectModel.computePracticalLightIntensity('downlight', 1, 'photo'), 28);
+  assert.equal(ProjectModel.computePracticalLightIntensity('lamp', 1, 'photo'), 20);
+  assert.equal(ProjectModel.computePracticalLightIntensity('room', 1, 'realtime'), 34.56);
+  assert.equal(ProjectModel.computePracticalLightIntensity('unknown', Number.NaN, 'photo'), 0);
+});
+
+test('roof is visible only for the whole-building exterior view', () => {
+  assert.equal(ProjectModel.shouldShowRoof({ buildingViewMode: 'all', cutawayMode: false, walkMode: false }), true);
+  assert.equal(ProjectModel.shouldShowRoof({ buildingViewMode: 'active', cutawayMode: false, walkMode: false }), false);
+  assert.equal(ProjectModel.shouldShowRoof({ buildingViewMode: 'all', cutawayMode: true, walkMode: false }), false);
+  assert.equal(ProjectModel.shouldShowRoof({ buildingViewMode: 'all', cutawayMode: false, walkMode: true }), false);
+});
+
+test('rotated footprints swap furniture dimensions at a right angle', () => {
+  assert.deepEqual(ProjectModel.getRotatedFootprint(180, 85, Math.PI / 2), { w: 85, d: 180 });
+  assert.deepEqual(ProjectModel.getRotatedFootprint(180, 85, 0), { w: 180, d: 85 });
+});
+
+test('stair rise is capped by the shortest wall on its level', () => {
+  const walls = [
+    { id: 'wall_1', levelId: 'level_1', height: 280 },
+    { id: 'wall_2', levelId: 'level_1', height: 240 },
+    { id: 'wall_3', levelId: 'level_2', height: 180 },
+  ];
+
+  assert.equal(ProjectModel.getStairRiseLimit(walls, 'level_1', 280), 240);
+  assert.equal(ProjectModel.getStairRiseLimit(walls, 'level_2', 280), 180);
+  assert.equal(ProjectModel.getStairRiseLimit([], 'level_1', 260), 260);
+});
+
 test('local draft round trip restores the latest project without a backend', () => {
   const values = new Map();
   const storage = {
@@ -175,11 +316,24 @@ test('local draft round trip preserves multiple levels and their objects', () =>
 
   assert.equal(ProjectModel.saveLocalDraft(storage, project), true);
   const restored = ProjectModel.loadLocalDraft(storage);
-  assert.deepEqual(restored.levels, project.levels);
+  assert.deepEqual(restored.levels.map(({ id, name, elevation, floorThickness, height, floorFinish }) => ({ id, name, elevation, floorThickness, height, floorFinish })), project.levels);
   assert.equal(restored.activeLevelId, 'level_2');
   assert.deepEqual(restored.walls.map(wall => wall.levelId), ['level_1', 'level_2']);
   assert.equal(restored.doors[0].wallId, 'obj_2');
   assert.equal(restored.doors[0].levelId, 'level_2');
+});
+
+test('active level 3D view keeps lower floors as physical context', () => {
+  const levels = [
+    { id: 'level_1', elevation: 0 },
+    { id: 'level_2', elevation: 300 },
+    { id: 'level_3', elevation: 600 },
+  ];
+
+  assert.deepEqual(ProjectModel.getVisibleLevelIds(levels, 'level_1', 'active'), ['level_1']);
+  assert.deepEqual(ProjectModel.getVisibleLevelIds(levels, 'level_2', 'active'), ['level_1', 'level_2']);
+  assert.deepEqual(ProjectModel.getVisibleLevelIds(levels, 'level_3', 'active'), ['level_1', 'level_2', 'level_3']);
+  assert.deepEqual(ProjectModel.getVisibleLevelIds(levels, 'level_2', 'all'), ['level_1', 'level_2', 'level_3']);
 });
 
 test('a damaged or unavailable local draft is ignored safely', () => {
@@ -221,6 +375,29 @@ test('L-shaped connected rooms produce only their enclosed floor faces', () => {
 
   assert.deepEqual(areas, [22500, 100000]);
   assert.equal(areas.reduce((sum, area) => sum + area, 0), 122500);
+});
+
+test('floor footprint area is reported in square meters and open walls have no area', () => {
+  const closed = [
+    { x1: 0, y1: 0, x2: 400, y2: 0 },
+    { x1: 400, y1: 0, x2: 400, y2: 300 },
+    { x1: 400, y1: 300, x2: 0, y2: 300 },
+    { x1: 0, y1: 300, x2: 0, y2: 0 },
+  ];
+
+  assert.equal(ProjectModel.computeFloorArea(closed), 12);
+  assert.equal(ProjectModel.computeFloorArea(closed.slice(0, 3)), null);
+});
+
+test('previous level resolves the nearest lower elevation', () => {
+  const levels = [
+    { id: 'level_1', elevation: 0 },
+    { id: 'level_2', elevation: 300 },
+    { id: 'level_3', elevation: 600 },
+  ];
+
+  assert.equal(ProjectModel.getPreviousLevel(levels, 'level_3').id, 'level_2');
+  assert.equal(ProjectModel.getPreviousLevel(levels, 'level_1'), null);
 });
 
 test('a door opening splits a wall into solid segments around the hole', () => {
@@ -290,6 +467,32 @@ test('furniture hit testing follows its visible rotation', () => {
   assert.equal(ProjectModel.hitTestFurniture(furniture, 45, 0), false);
 });
 
+test('rectangle selection keeps fully contained objects on the active level', () => {
+  const project = {
+    walls: [
+      { id: 'wall_inside', levelId: 'level_1', x1: 0, y1: 0, x2: 300, y2: 0 },
+      { id: 'wall_partial', levelId: 'level_1', x1: 0, y1: 0, x2: 500, y2: 0 },
+      { id: 'wall_other_level', levelId: 'level_2', x1: 0, y1: 0, x2: 200, y2: 0 },
+    ],
+    doors: [{ id: 'door_inside', levelId: 'level_1', x: 150, y: 0 }],
+    windows: [{ id: 'window_outside', levelId: 'level_1', x: 420, y: 0 }],
+    rooms: [],
+    furnitures: [{ id: 'sofa_inside', levelId: 'level_1', x: 150, y: 120, w: 100, d: 60, rotation: 0 }],
+    dimensions: [{ id: 'dimension_inside', levelId: 'level_1', x1: 30, y1: 180, x2: 250, y2: 180 }],
+    stairs: [{ id: 'stair_other_level', levelId: 'level_2', x: 120, y: 120, width: 100, length: 200, rotation: 0 }],
+  };
+
+  assert.deepEqual(
+    ProjectModel.selectObjectsInRect(project, { start: { x: 350, y: 220 }, end: { x: -10, y: -10 } }, 'level_1'),
+    [
+      { type: 'wall', id: 'wall_inside' },
+      { type: 'door', id: 'door_inside' },
+      { type: 'furniture', id: 'sofa_inside' },
+      { type: 'dimension', id: 'dimension_inside' },
+    ],
+  );
+});
+
 test('furniture catalog filters by category and localized search text', () => {
   const items = [
     { type: 'sofa', category: 'living', label: '沙发 Sofa' },
@@ -331,4 +534,25 @@ test('object snapping preserves a free position when every target is outside the
     { walls: [], objects: [], gridSize: 50, threshold: 10 },
   );
   assert.deepEqual(result, { x: 123, y: 177, kind: null, guides: [] });
+});
+
+test('room templates create ordinary editable walls, room metadata and furniture', () => {
+  assert.deepEqual(Object.keys(ProjectModel.ROOM_TEMPLATES), ['living', 'bedroom', 'dining', 'study']);
+  for (const templateId of Object.keys(ProjectModel.ROOM_TEMPLATES)) {
+    const created = ProjectModel.createRoomTemplate(templateId, { levelId: 'level_2', originX: 100, originY: 200, startId: 20 });
+    assert.equal(created.walls.length, 4, templateId);
+    assert.equal(created.rooms.length, 1, templateId);
+    assert.ok(created.furnitures.length >= 2, templateId);
+    assert.ok(created.windows.length >= 1, templateId);
+    assert.ok(created.doors.length >= 1, templateId);
+    assert.ok([...created.windows, ...created.doors].every(item => created.walls.some(wall => wall.id === item.wallId)), templateId);
+    const objects = [...created.walls, ...created.rooms, ...created.furnitures, ...created.windows, ...created.doors];
+    assert.equal(new Set(objects.map(item => item.id)).size, objects.length, templateId);
+    assert.ok(objects.every(item => item.levelId === 'level_2'), templateId);
+    assert.ok(created.nextId > 20, templateId);
+  }
+  const living = ProjectModel.createRoomTemplate('living', { startId: 1 });
+  assert.equal(living.furnitures.find(item => item.type === 'table').h, 42);
+  assert.equal(living.furnitures.find(item => item.type === 'tv').elevation, 55);
+  assert.ok(living.furnitures.some(item => item.type === 'cabinet'));
 });

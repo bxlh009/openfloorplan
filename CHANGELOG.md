@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.5.8 - 2026-08-12
+
+- Replace visually mismatched ornate sofa and coffee-table assets with an explicitly modern procedural sofa plus a locally bundled CC0 round stone table; keep the verified modern media cabinet.
+- Load self-contained local glTF furniture with verified buffer/texture references, dimension-aware scaling and automatic grounding while retaining procedural fallbacks.
+- Add tight house-sized shadow-camera bounds, physically scaled practical-light intensity, room-aware photo lights and a sky environment for clearer interior depth.
+- Rebalance photo-mode exposure toward soft skylight and away from clipped direct sun, retaining readable white walls and gentler window-shadow boundaries.
+- Give living, bedroom, dining and study templates editable doors and windows, and refine living-room dimensions and eye-level composition.
+- Replace square-looking procedural wood floors with modern long-plank dimensions and a local CC0 photo-scanned PBR wood set containing diffuse, OpenGL normal and roughness maps.
+- Make legacy/default wood, tile and concrete finishes resolve to modern light oak, 120×60 cm travertine slabs and warm-grey microcement instead of stale fallback textures.
+- Ground every generated furniture group from its actual lowest visible geometry, fixing floating TV and beveled furniture while keeping selection and contact shadows on the floor plane.
+- Raise realtime/photo viewport quality with 2048/4096 shadow maps, 8×/16× anisotropic filtering, richer contrast and capped 1.75×/2.5× pixel ratios.
+- Add real-scale procedural bump materials, wall/floor and furniture contact shadows, a gradient sky, transmissive clear-coated window glass and rounded upholstered geometry.
+- Export PNG at 1.5× or 2× viewport resolution within a 16-megapixel safety budget, restoring the interactive renderer after capture.
+- Add independent daylight, warm-night and studio lighting presets plus eye-level, bird, isometric and exterior camera presets with one saved custom view.
+- Add per-level parameterized ceilings, cove lighting and downlights; ceiling panels stay hidden while inspecting that level's interior.
+- Add six real-scale procedural materials for floors, walls and furniture, including pick/apply material-brush controls.
+- Add editable living-room, bedroom, dining-room and study templates that generate ordinary walls, room metadata and furniture.
+- Add switchable realtime and warm-photo rendering modes; the selected mode is preserved in JSON exports and local drafts.
+- Keep editing responsive with a capped pixel ratio, while photo mode raises output density, uses warmer practical lights and deeper light contrast.
+- Upgrade the 3D presentation layer with tone mapping, neutral ambient lighting, soft site shadows and style-aware ground/roof materials.
+- Add a clean roof cap and eave band for exterior views, and hide it automatically in cutaway/interior views.
+- Expand floor slabs beneath wall thickness and add subtle plaster, wood-board and roof textures to reduce gaps, flat gray surfaces and color bands.
+- Improve exterior camera framing and rebuild disposal so repeated style/level changes do not leave stale geometry behind.
+
+## 0.5.7 - 2026-08-12
+
+- Make floor slab edges unlit solid-color fascias so directional shadows cannot create a false dark color band.
+
+## 0.5.6 - 2026-08-12
+
+- Separate textured floor tops from solid slab sides and undersides to remove stretched texture bands and excessive edge color contrast in 3D.
+
+## 0.5.5 - 2026-08-12
+
+- Add right-click 90° rotation for furniture placement and selected 2D furniture, with rotated preview and footprint-aware snapping.
+- Clamp 3D stair rise to the current level's wall height and expose the resulting maximum rise in the properties panel.
+- Remove the interior-style panel and its flow step while keeping legacy project style data readable.
+
+## 0.5.4 - 2026-08-12
+
+- Show the immediate lower-floor footprint as a dashed 2D preview with an enclosed-area hint while editing an upper floor.
+- Give 3D floor slabs their configured thickness so the slab closes the gap between the lower wall top and the upper floor level.
+- Add regression coverage for lower-level lookup and floor footprint area reporting.
+
+## 0.5.3 - 2026-08-11
+
+- Synchronize floor selection with the 3D camera: 1F focuses 1F, while an upper floor is shown at its physical elevation with lower floors as context.
+- Keep the whole-building 3D toggle available for an explicit full-home overview.
+- Add regression coverage for active-level visibility and lower-floor context.
+
+## 0.5.2 - 2026-08-11
+
+- Add rectangle marquee selection on the active level, Shift additive selection, and a one-click/Delete-key removal action.
+- Remove selected walls together with their linked doors and windows, preserving undo and local autosave behavior.
+- Add regression coverage for full-containment selection and active-level isolation.
+
 ## 0.5.1 - 2026-08-11
 
 - Save the latest in-memory draft when the page is reloaded or closed, covering the final edit boundary in browsers that end a page immediately.

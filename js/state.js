@@ -12,7 +12,12 @@ const State = {
   selectedTool: 'select',
   activeObject: null,
   activeType: null,
+  selectedObjects: [],
+  selectionBox: null,
   nextId: 1,
+  pendingFurniture: null,
+  pendingFurnitureRotation: 0,
+  materialBrushId: null,
 
   zoom: 1,
   panX: 0,
@@ -35,6 +40,10 @@ const State = {
   // Whole-home style preset; see ProjectModel.STYLE_PRESETS.
   style: 'modern',
   architectureStyle: 'modern',
+  renderMode: 'realtime',
+  lightingPreset: 'daylight',
+  cameraPreset: 'isometric',
+  savedCamera: null,
   // Furniture category filter
   furnitureCategory: 'all',
   // Sun controls
@@ -47,7 +56,7 @@ function snapshot() {
     levels: State.levels, activeLevelId: State.activeLevelId,
     walls: State.walls, doors: State.doors, windows: State.windows,
     rooms: State.rooms, furnitures: State.furnitures, dimensions: State.dimensions, stairs: State.stairs,
-    nextId: State.nextId, style: State.style, architectureStyle: State.architectureStyle, sunAngle: State.sunAngle,
+    nextId: State.nextId, style: State.style, architectureStyle: State.architectureStyle, renderMode: State.renderMode, lightingPreset: State.lightingPreset, cameraPreset: State.cameraPreset, savedCamera: State.savedCamera, sunAngle: State.sunAngle,
   });
 }
 function _restore(json) {
@@ -64,13 +73,20 @@ function _restore(json) {
   State.nextId = data.nextId;
   State.style = data.style || ProjectModel.DEFAULT_STYLE;
   State.architectureStyle = data.architectureStyle || ProjectModel.DEFAULT_ARCHITECTURE_STYLE;
+  State.renderMode = data.renderMode || ProjectModel.DEFAULT_RENDER_MODE;
+  State.lightingPreset = data.lightingPreset || ProjectModel.DEFAULT_LIGHTING_PRESET;
+  State.cameraPreset = data.cameraPreset || ProjectModel.DEFAULT_CAMERA_PRESET;
+  State.savedCamera = data.savedCamera || null;
   State.sunAngle = data.sunAngle || 60;
   State.activeObject = null;
   State.activeType = null;
+  State.selectedObjects = [];
+  State.selectionBox = null;
+  State.pendingFurniture = null;
+  State.pendingFurnitureRotation = 0;
   requestRedraw();
   if (window.rebuild3D) window.rebuild3D();
   if (window.renderProps) window.renderProps();
-  if (window.syncStyleUI) window.syncStyleUI();
   if (window.syncArchitectureUI) window.syncArchitectureUI();
   if (window.syncLevelsUI) window.syncLevelsUI();
 }
@@ -109,8 +125,10 @@ function restoreLocalDraft() {
   State.walls = data.walls; State.doors = data.doors; State.windows = data.windows;
   State.rooms = data.rooms; State.furnitures = data.furnitures; State.dimensions = data.dimensions; State.stairs = data.stairs;
   State.levels = data.levels; State.activeLevelId = data.activeLevelId;
-  State.style = data.style; State.architectureStyle = data.architectureStyle; State.sunAngle = data.sunAngle;
+  State.style = data.style; State.architectureStyle = data.architectureStyle; State.renderMode = data.renderMode; State.lightingPreset = data.lightingPreset; State.cameraPreset = data.cameraPreset; State.savedCamera = data.savedCamera; State.sunAngle = data.sunAngle;
   State.nextId = ProjectModel.getNextObjectId(data);
+  State.activeObject = null; State.activeType = null;
+  State.selectedObjects = []; State.selectionBox = null;
   _history.clear();
   updateAutosaveBadge(true);
   return true;
@@ -127,6 +145,76 @@ function mutateProject(mutator) {
 }
 function undo() { const changed = _history.undo(); if (changed) persistLocalDraft(); return changed; }
 function redo() { const changed = _history.redo(); if (changed) persistLocalDraft(); return changed; }
+
+function normalizeSelectionType(type) { return type === 'wall-endpoint' ? 'wall' : type; }
+function getSelectionEntries() {
+  if (Array.isArray(State.selectedObjects) && State.selectedObjects.length) return State.selectedObjects;
+  return State.activeObject ? [{ id: State.activeObject, type: State.activeType }] : [];
+}
+function setSelection(entries) {
+  const unique = new Map();
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    if (!entry?.id || !entry?.type) continue;
+    const key = normalizeSelectionType(entry.type) + ':' + entry.id;
+    if (!unique.has(key)) unique.set(key, { id: entry.id, type: entry.type });
+  }
+  State.selectedObjects = [...unique.values()];
+  if (State.selectedObjects.length === 1) {
+    State.activeObject = State.selectedObjects[0].id;
+    State.activeType = State.selectedObjects[0].type;
+  } else {
+    State.activeObject = null;
+    State.activeType = null;
+  }
+  State.selectionBox = null;
+  if (window.syncSelectionUI) window.syncSelectionUI();
+  if (window.renderProps) window.renderProps();
+  requestRedraw();
+}
+function clearSelection() { setSelection([]); }
+function deleteSelectedObjects() {
+  const entries = getSelectionEntries();
+  if (!entries.length) return 0;
+  const selectedKeys = new Set(entries.map(entry => normalizeSelectionType(entry.type) + ':' + entry.id));
+  const wallIds = new Set(entries.filter(entry => normalizeSelectionType(entry.type) === 'wall').map(entry => entry.id));
+  let deleted = 0;
+  const shouldRemove = (type, item) => selectedKeys.has(type + ':' + item.id);
+  mutateProject(() => {
+    const removeCollection = (key, type) => {
+      const collection = Array.isArray(State[key]) ? State[key] : [];
+      State[key] = collection.filter(item => {
+        const remove = shouldRemove(type, item);
+        if (remove) deleted += 1;
+        return !remove;
+      });
+    };
+    removeCollection('walls', 'wall');
+    for (const key of ['doors', 'windows']) {
+      const type = key === 'doors' ? 'door' : 'window';
+      const collection = Array.isArray(State[key]) ? State[key] : [];
+      State[key] = collection.filter(item => {
+        const remove = shouldRemove(type, item) || wallIds.has(item.wallId);
+        if (remove) deleted += 1;
+        return !remove;
+      });
+    }
+    removeCollection('rooms', 'room');
+    removeCollection('furnitures', 'furniture');
+    removeCollection('dimensions', 'dimension');
+    removeCollection('stairs', 'stair');
+  });
+  clearSelection();
+  if (window.rebuild3D) window.rebuild3D();
+  if (window.renderProps) window.renderProps();
+  if (deleted) {
+    const status = document.getElementById('status-info');
+    if (status) status.textContent = t('message.deleteSelection').replace('{count}', String(deleted));
+  }
+  return deleted;
+}
+window.setSelection = setSelection;
+window.clearSelection = clearSelection;
+window.deleteSelectedObjects = deleteSelectedObjects;
 
 // A page can be closed or reloaded immediately after an edit. Keep the latest
 // in-memory state as the final save, even when a browser ends the page before
@@ -164,6 +252,7 @@ function pasteSelection() {
   });
   State.activeObject = obj.id;
   State.activeType = kind;
+  State.selectedObjects = [{ id: obj.id, type: kind }];
   requestRedraw();
   if (window.rebuild3D) window.rebuild3D();
   if (window.renderProps) window.renderProps();

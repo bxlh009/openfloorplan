@@ -10,6 +10,135 @@
   const DEFAULT_LEVEL = { id: 'level_1', name: '1F', elevation: 0, floorThickness: 20, height: 280, floorFinish: 'wood' };
   const DEFAULT_STYLE = 'modern';
   const DEFAULT_ARCHITECTURE_STYLE = 'modern';
+  const DEFAULT_RENDER_MODE = 'realtime';
+  const RENDER_PRESETS = {
+    realtime: {
+      pixelRatioCap: 1.75, shadowMapSize: 2048, anisotropy: 8, textureDetail: 512,
+      exportScale: 1.5, contactShadowOpacity: 0.11,
+      exposure: 1.04, ambient: 0.34, hemisphere: 0.42, sun: 1.12, practicalLights: false,
+    },
+    photo: {
+      pixelRatioCap: 2.5, shadowMapSize: 4096, anisotropy: 16, textureDetail: 1024,
+      exportScale: 2, contactShadowOpacity: 0.17,
+      exposure: 1.02, ambient: 0.25, hemisphere: 0.36, sun: 0.98, practicalLights: true,
+    },
+  };
+  const DEFAULT_LIGHTING_PRESET = 'daylight';
+  const LIGHTING_PRESETS = {
+    daylight: { sunAngle: 58, sun: 0.92, ambient: 1, hemisphere: 1, practical: 0.2, practicalColor: '#fff1d6', exposure: 1 },
+    warmNight: { sunAngle: 14, sun: 0.16, ambient: 0.48, hemisphere: 0.42, practical: 1.35, practicalColor: '#ffd09a', exposure: 0.92 },
+    studio: { sunAngle: 42, sun: 0.78, ambient: 1.18, hemisphere: 1.2, practical: 0.55, practicalColor: '#fff4e5', exposure: 1.08 },
+  };
+  const DEFAULT_CAMERA_PRESET = 'isometric';
+  const CAMERA_PRESETS = {
+    eye: { theta: 0.78, phi: 1.36, radiusScale: 1.15, fov: 58 },
+    bird: { theta: 0.78, phi: 0.28, radiusScale: 1.45, fov: 52 },
+    isometric: { theta: 0.78, phi: 0.92, radiusScale: 1.65, fov: 54 },
+    exterior: { theta: 0.62, phi: 1.04, radiusScale: 1.9, fov: 50 },
+  };
+  const DEFAULT_CEILING = { enabled: false, drop: 15, thickness: 8, coveLight: false, downlights: 0, color: '#f7f3ed' };
+  const MATERIAL_PRESETS = {
+    oakLight: { color: '#d8bf98', colorAlt: '#b99568', pattern: 'wood', scaleCm: 18, plankLengthCm: 180, plankWidthCm: 18, boardsPerTile: 4, pbrFloorAsset: 'wood_floor_040', pbrFiles: { diff: 'WoodFloor040_1K-JPG_Color.jpg', normal: 'WoodFloor040_1K-JPG_NormalGL.jpg', roughness: 'WoodFloor040_1K-JPG_Roughness.jpg' }, pbrTint: '#fff6e8', pbrSizeCm: 190, roughness: 0.66, metalness: 0 },
+    oakWarm: { color: '#b9895e', colorAlt: '#8f6242', pattern: 'wood', scaleCm: 18, plankLengthCm: 160, plankWidthCm: 18, boardsPerTile: 4, pbrFloorAsset: 'wood_floor_040', pbrFiles: { diff: 'WoodFloor040_1K-JPG_Color.jpg', normal: 'WoodFloor040_1K-JPG_NormalGL.jpg', roughness: 'WoodFloor040_1K-JPG_Roughness.jpg' }, pbrTint: '#d7aa80', pbrSizeCm: 190, roughness: 0.64, metalness: 0 },
+    walnut: { color: '#6b4934', colorAlt: '#422c22', pattern: 'wood', scaleCm: 16, plankLengthCm: 140, plankWidthCm: 16, boardsPerTile: 4, pbrFloorAsset: 'wood_floor_040', pbrFiles: { diff: 'WoodFloor040_1K-JPG_Color.jpg', normal: 'WoodFloor040_1K-JPG_NormalGL.jpg', roughness: 'WoodFloor040_1K-JPG_Roughness.jpg' }, pbrTint: '#704d3d', pbrSizeCm: 190, roughness: 0.6, metalness: 0 },
+    travertine: { color: '#d9c7aa', colorAlt: '#b9a17d', pattern: 'stone', scaleCm: 60, surfaceLengthCm: 120, surfaceWidthCm: 60, roughness: 0.48, metalness: 0 },
+    microcement: { color: '#aaa59f', colorAlt: '#85817d', pattern: 'cement', scaleCm: 120, surfaceLengthCm: 160, surfaceWidthCm: 160, roughness: 0.88, metalness: 0 },
+    linen: { color: '#c9c0b0', colorAlt: '#a99f91', pattern: 'fabric', scaleCm: 12, surfaceLengthCm: 48, surfaceWidthCm: 48, roughness: 0.96, metalness: 0 },
+  };
+  const ROOM_TEMPLATES = {
+    living: {
+      width: 520, depth: 380, floorMaterialId: 'oakLight',
+      openings: [
+        { type: 'window', wallIndex: 0, ratio: 0.34, width: 150, height: 130, sillHeight: 82 },
+        { type: 'window', wallIndex: 1, ratio: 0.54, width: 130, height: 125, sillHeight: 85 },
+        { type: 'door', wallIndex: 2, ratio: 0.82, width: 90, height: 210 },
+      ],
+      furnitures: [
+        { type: 'sofa', x: 120, y: 250, rotation: -2.08, materialId: 'linen' },
+        { type: 'cabinet', x: 440, y: 65, w: 160, d: 42, h: 55, materialId: 'walnut' },
+        { type: 'tv', x: 440, y: 65, elevation: 55 },
+        { type: 'table', x: 280, y: 195, w: 110, d: 60, h: 42, rotation: -0.24, materialId: 'oakWarm' },
+        { type: 'plant', x: 470, y: 325 },
+      ],
+    },
+    bedroom: {
+      width: 420, depth: 360, floorMaterialId: 'oakWarm',
+      openings: [
+        { type: 'window', wallIndex: 0, ratio: 0.48, width: 150, height: 125, sillHeight: 85 },
+        { type: 'door', wallIndex: 1, ratio: 0.78, width: 88, height: 210 },
+      ],
+      furnitures: [
+        { type: 'bed', x: 165, y: 205, materialId: 'linen' },
+        { type: 'wardrobe', x: 320, y: 45, materialId: 'walnut' },
+        { type: 'lamp', x: 55, y: 305 },
+      ],
+    },
+    dining: {
+      width: 380, depth: 320, floorMaterialId: 'travertine',
+      openings: [
+        { type: 'window', wallIndex: 0, ratio: 0.5, width: 140, height: 125, sillHeight: 85 },
+        { type: 'door', wallIndex: 2, ratio: 0.82, width: 90, height: 210 },
+      ],
+      furnitures: [
+        { type: 'table', x: 190, y: 165, materialId: 'oakWarm' },
+        { type: 'cabinet', x: 315, y: 45, materialId: 'walnut' },
+        { type: 'plant', x: 48, y: 268 },
+      ],
+    },
+    study: {
+      width: 340, depth: 300, floorMaterialId: 'oakLight',
+      openings: [
+        { type: 'window', wallIndex: 0, ratio: 0.5, width: 130, height: 125, sillHeight: 85 },
+        { type: 'door', wallIndex: 1, ratio: 0.8, width: 86, height: 210 },
+      ],
+      furnitures: [
+        { type: 'desk', x: 170, y: 55, materialId: 'oakWarm' },
+        { type: 'cabinet', x: 285, y: 215, materialId: 'walnut' },
+        { type: 'plant', x: 48, y: 245 },
+      ],
+    },
+  };
+
+  function normalizeMaterialId(value) {
+    return Object.hasOwn(MATERIAL_PRESETS, value) ? value : null;
+  }
+
+  function getMaterialRepeat(materialId, widthM, depthM) {
+    const preset = MATERIAL_PRESETS[materialId];
+    if (!preset) return { x: 1, y: 1 };
+    const lengthCm = preset.plankLengthCm || preset.surfaceLengthCm || preset.scaleCm;
+    const widthCm = preset.plankWidthCm
+      ? preset.plankWidthCm * (preset.boardsPerTile || 1)
+      : (preset.surfaceWidthCm || preset.scaleCm);
+    return {
+      x: Number((Math.max(0.01, finiteNumber(widthM, 1)) / (lengthCm / 100)).toFixed(4)),
+      y: Number((Math.max(0.01, finiteNumber(depthM, 1)) / (widthCm / 100)).toFixed(4)),
+    };
+  }
+
+  function getDefaultFloorMaterialId(floorFinish) {
+    return { wood: 'oakLight', tile: 'travertine', concrete: 'microcement' }[floorFinish] || 'oakLight';
+  }
+
+  function computeGroundingTranslation(localMinY) {
+    const minY = Number(localMinY);
+    if (!Number.isFinite(minY) || Math.abs(minY) < 0.0005) return 0;
+    return -minY;
+  }
+
+  function computeShadowCameraExtent(bounds) {
+    const width = Math.max(0, finiteNumber(bounds?.maxX, 0) - finiteNumber(bounds?.minX, 0));
+    const depth = Math.max(0, finiteNumber(bounds?.maxZ, 0) - finiteNumber(bounds?.minZ, 0));
+    return Number(Math.max(4, Math.min(45, Math.max(width, depth) / 2 + 3)).toFixed(3));
+  }
+
+  function computePracticalLightIntensity(kind, strength, renderMode) {
+    const base = { room: 48, downlight: 28, lamp: 20 }[kind];
+    const normalizedStrength = Number(strength);
+    if (!base || !Number.isFinite(normalizedStrength) || normalizedStrength <= 0) return 0;
+    const qualityFactor = renderMode === 'photo' ? 1 : 0.72;
+    return Number((base * normalizedStrength * qualityFactor).toFixed(2));
+  }
   const FURNITURE_DEFAULTS = {
     sofa: { w: 180, d: 85, h: 80 },
     bed: { w: 160, d: 200, h: 50 },
@@ -29,42 +158,115 @@
   };
   const STYLE_PRESETS = {
     modern: {
-      wall: '#f4f1ec', floor: '#c8a47b', floorAlt: '#b99066', wood: '#9a6b43',
-      fabric: '#65717b', metal: '#aeb7bf', accent: '#315f59', sky: '#c9d9e6', sun: '#fff0d6', furnitureProfile: 'low',
+      wall: '#f4f1ec', floor: '#c8a47b', floorAlt: '#b99066', wood: '#9a6b43', roof: '#596269', ground: '#aeb9ac',
+      fabric: '#65717b', metal: '#aeb7bf', accent: '#315f59', sky: '#c9d9e6', sun: '#fff0d6', wallRoughness: 0.86, furnitureProfile: 'low',
     },
     nordic: {
-      wall: '#fbfbf7', floor: '#e1c9a8', floorAlt: '#d5b78e', wood: '#c79b69',
-      fabric: '#aab7b0', metal: '#c8ced1', accent: '#78968b', sky: '#dce7ec', sun: '#fff7e8', furnitureProfile: 'tapered',
+      wall: '#fbfbf7', floor: '#e1c9a8', floorAlt: '#d5b78e', wood: '#c79b69', roof: '#7c8790', ground: '#c4cdc7',
+      fabric: '#aab7b0', metal: '#c8ced1', accent: '#78968b', sky: '#dce7ec', sun: '#fff7e8', wallRoughness: 0.9, furnitureProfile: 'tapered',
     },
     japanese: {
-      wall: '#eee7d8', floor: '#b89b72', floorAlt: '#a9885f', wood: '#76563c',
-      fabric: '#9e9a82', metal: '#4f5550', accent: '#66735b', sky: '#d6d8cf', sun: '#f8e7c7', furnitureProfile: 'floor',
+      wall: '#eee7d8', floor: '#b89b72', floorAlt: '#a9885f', wood: '#76563c', roof: '#66564d', ground: '#aeb4a6',
+      fabric: '#9e9a82', metal: '#4f5550', accent: '#66735b', sky: '#d6d8cf', sun: '#f8e7c7', wallRoughness: 0.92, furnitureProfile: 'floor',
     },
     wabiSabi: {
-      wall: '#d8cdbc', floor: '#a68b6b', floorAlt: '#93765a', wood: '#745b45',
-      fabric: '#8c8173', metal: '#6c6962', accent: '#7b6d59', sky: '#c8c2b7', sun: '#ecd8b8', furnitureProfile: 'organic',
+      wall: '#d8cdbc', floor: '#a68b6b', floorAlt: '#93765a', wood: '#745b45', roof: '#827363', ground: '#b9b1a4',
+      fabric: '#8c8173', metal: '#6c6962', accent: '#7b6d59', sky: '#c8c2b7', sun: '#ecd8b8', wallRoughness: 0.96, furnitureProfile: 'organic',
     },
     industrial: {
-      wall: '#a9aaa7', floor: '#6f6b65', floorAlt: '#5d5954', wood: '#5c4635',
-      fabric: '#4d5153', metal: '#363b3d', accent: '#a5643d', sky: '#aeb9bf', sun: '#e8d5b4', furnitureProfile: 'frame',
+      wall: '#a9aaa7', floor: '#6f6b65', floorAlt: '#5d5954', wood: '#5c4635', roof: '#3e4447', ground: '#7d8885',
+      fabric: '#4d5153', metal: '#363b3d', accent: '#a5643d', sky: '#aeb9bf', sun: '#e8d5b4', wallRoughness: 0.82, furnitureProfile: 'frame',
     },
     american: {
-      wall: '#eadfce', floor: '#7a5136', floorAlt: '#68432d', wood: '#5b3824',
-      fabric: '#58645f', metal: '#a27845', accent: '#354f49', sky: '#c6d4dc', sun: '#ffe9c2', furnitureProfile: 'classic',
+      wall: '#eadfce', floor: '#7a5136', floorAlt: '#68432d', wood: '#5b3824', roof: '#68452f', ground: '#a8b79a',
+      fabric: '#58645f', metal: '#a27845', accent: '#354f49', sky: '#c6d4dc', sun: '#ffe9c2', wallRoughness: 0.88, furnitureProfile: 'classic',
     },
   };
   const ARCHITECTURE_PRESETS = {
-    modern: { frameWidth: 0.035, mullions: 0, baseboard: 0.04, crown: 0, doorProfile: 'flush' },
-    nordic: { frameWidth: 0.045, mullions: 1, baseboard: 0.09, crown: 0.03, doorProfile: 'groove' },
-    japanese: { frameWidth: 0.055, mullions: 4, baseboard: 0.04, crown: 0.07, doorProfile: 'slatted' },
-    wabiSabi: { frameWidth: 0.07, mullions: 0, baseboard: 0.025, crown: 0, doorProfile: 'organic' },
-    industrial: { frameWidth: 0.03, mullions: 2, baseboard: 0.07, crown: 0.05, doorProfile: 'steel' },
-    american: { frameWidth: 0.075, mullions: 2, baseboard: 0.14, crown: 0.11, doorProfile: 'panel' },
+    modern: { frameWidth: 0.035, mullions: 0, baseboard: 0.04, crown: 0, eave: 0.16, roofHeight: 0.14, doorProfile: 'flush' },
+    nordic: { frameWidth: 0.045, mullions: 1, baseboard: 0.09, crown: 0.03, eave: 0.22, roofHeight: 0.16, doorProfile: 'groove' },
+    japanese: { frameWidth: 0.055, mullions: 4, baseboard: 0.04, crown: 0.07, eave: 0.28, roofHeight: 0.18, doorProfile: 'slatted' },
+    wabiSabi: { frameWidth: 0.07, mullions: 0, baseboard: 0.025, crown: 0, eave: 0.2, roofHeight: 0.15, doorProfile: 'organic' },
+    industrial: { frameWidth: 0.03, mullions: 2, baseboard: 0.07, crown: 0.05, eave: 0.12, roofHeight: 0.12, doorProfile: 'steel' },
+    american: { frameWidth: 0.075, mullions: 2, baseboard: 0.14, crown: 0.11, eave: 0.3, roofHeight: 0.2, doorProfile: 'panel' },
   };
 
   function finiteNumber(value, fallback) {
     const number = Number(value);
     return Number.isFinite(number) ? number : fallback;
+  }
+
+  function computeRenderExportSize(width, height, requestedScale, maxPixels) {
+    const baseWidth = Math.max(1, Math.floor(finiteNumber(width, 1)));
+    const baseHeight = Math.max(1, Math.floor(finiteNumber(height, 1)));
+    const desiredScale = Math.max(1, finiteNumber(requestedScale, 1));
+    const budget = Math.max(baseWidth * baseHeight, finiteNumber(maxPixels, 16000000));
+    const budgetScale = Math.sqrt(budget / (baseWidth * baseHeight));
+    const scale = Math.min(desiredScale, budgetScale);
+    return {
+      width: Math.max(1, Math.floor(baseWidth * scale)),
+      height: Math.max(1, Math.floor(baseHeight * scale)),
+      scale,
+    };
+  }
+
+  function normalizeCameraView(view) {
+    if (!view || !Array.isArray(view.position) || !Array.isArray(view.target) || view.position.length !== 3 || view.target.length !== 3) return null;
+    const position = view.position.map(Number);
+    const target = view.target.map(Number);
+    const fov = finiteNumber(view.fov, 54);
+    if (![...position, ...target, fov].every(Number.isFinite)) return null;
+    return { position, target, fov: Math.max(25, Math.min(90, fov)) };
+  }
+
+  function applyMaterialBrush(source, target) {
+    return { ...target, materialId: normalizeMaterialId(source?.materialId) };
+  }
+
+  function createRoomTemplate(templateId, options) {
+    const template = ROOM_TEMPLATES[templateId];
+    if (!template) throw new Error('Unknown room template: ' + templateId);
+    const levelId = String(options?.levelId || DEFAULT_LEVEL.id);
+    const originX = finiteNumber(options?.originX, 0);
+    const originY = finiteNumber(options?.originY, 0);
+    const height = Math.max(100, finiteNumber(options?.height, DEFAULT_LEVEL.height));
+    const thickness = Math.max(1, finiteNumber(options?.thickness, 20));
+    let nextId = Math.max(1, Math.floor(finiteNumber(options?.startId, 1)));
+    const genId = () => 'obj_' + nextId++;
+    const x2 = originX + template.width;
+    const y2 = originY + template.depth;
+    const wall = points => ({ id: genId(), levelId, ...points, thickness, height, materialId: null });
+    const walls = [
+      wall({ x1: originX, y1: originY, x2, y2: originY }),
+      wall({ x1: x2, y1: originY, x2, y2 }),
+      wall({ x1: x2, y1: y2, x2: originX, y2 }),
+      wall({ x1: originX, y1: y2, x2: originX, y2: originY }),
+    ];
+    const rooms = [{
+      id: genId(), levelId, templateId,
+      x: originX + template.width / 2, y: originY + template.depth / 2,
+      w: template.width, d: template.depth, materialId: template.floorMaterialId,
+    }];
+    const furnitures = template.furnitures.map(item => {
+      const normalized = normalizeFurniture(item);
+      return { ...normalized, id: genId(), levelId, x: originX + normalized.x, y: originY + normalized.y };
+    });
+    const doors = [];
+    const windows = [];
+    for (const opening of template.openings || []) {
+      const parentWall = walls[Math.max(0, Math.min(walls.length - 1, Math.floor(finiteNumber(opening.wallIndex, 0))))];
+      const ratio = Math.max(0.12, Math.min(0.88, finiteNumber(opening.ratio, 0.5)));
+      const item = {
+        id: genId(), levelId, wallId: parentWall.id,
+        x: Math.round(parentWall.x1 + (parentWall.x2 - parentWall.x1) * ratio),
+        y: Math.round(parentWall.y1 + (parentWall.y2 - parentWall.y1) * ratio),
+        width: finiteNumber(opening.width, opening.type === 'door' ? 90 : 120),
+        height: finiteNumber(opening.height, opening.type === 'door' ? 210 : 120),
+      };
+      if (opening.type === 'door') doors.push({ ...item, openAngle: 90, swing: 1 });
+      else windows.push({ ...item, sillHeight: finiteNumber(opening.sillHeight, 90) });
+    }
+    return { walls, rooms, furnitures, doors, windows, nextId };
   }
 
   function normalizeFurniture(item) {
@@ -74,11 +276,14 @@
       w: finiteNumber(item.w ?? item.width, defaults.w),
       d: finiteNumber(item.d ?? item.depth ?? item.height, defaults.d),
       h: finiteNumber(item.h, defaults.h),
+      elevation: Math.max(0, finiteNumber(item.elevation, 0)),
       rotation: finiteNumber(item.rotation, 0),
+      materialId: normalizeMaterialId(item.materialId),
     };
   }
 
   function normalizeLevel(level, index) {
+    const ceiling = level.ceiling && typeof level.ceiling === 'object' ? level.ceiling : {};
     return {
       ...level,
       id: String(level.id || ('level_' + (index + 1))),
@@ -87,6 +292,15 @@
       floorThickness: Math.max(1, finiteNumber(level.floorThickness, 20)),
       height: Math.max(100, finiteNumber(level.height, 280)),
       floorFinish: ['wood', 'tile', 'concrete'].includes(level.floorFinish) ? level.floorFinish : 'wood',
+      materialId: normalizeMaterialId(level.materialId),
+      ceiling: {
+        enabled: ceiling.enabled === true,
+        drop: Math.max(0, Math.min(80, finiteNumber(ceiling.drop, DEFAULT_CEILING.drop))),
+        thickness: Math.max(2, Math.min(30, finiteNumber(ceiling.thickness, DEFAULT_CEILING.thickness))),
+        coveLight: ceiling.coveLight === true,
+        downlights: Math.max(0, Math.min(12, Math.round(finiteNumber(ceiling.downlights, DEFAULT_CEILING.downlights)))),
+        color: /^#[0-9a-f]{6}$/i.test(ceiling.color || '') ? ceiling.color : DEFAULT_CEILING.color,
+      },
     };
   }
 
@@ -106,7 +320,7 @@
     const fallbackLevelId = levels[0].id;
     const activeLevelId = levelIds.has(input.activeLevelId) ? input.activeLevelId : fallbackLevelId;
     const withLevel = item => ({ ...item, levelId: levelIds.has(item.levelId) ? item.levelId : fallbackLevelId });
-    const walls = collection(input, 'walls').map(wall => withLevel({ thickness: 20, height: 280, ...wall }));
+    const walls = collection(input, 'walls').map(wall => withLevel({ thickness: 20, height: 280, ...wall, materialId: normalizeMaterialId(wall.materialId) }));
     const wallLevels = new Map(walls.map(wall => [wall.id, wall.levelId]));
     const withOpeningLevel = item => ({ ...item, levelId: levelIds.has(item.levelId) ? item.levelId : (wallLevels.get(item.wallId) || fallbackLevelId) });
     return {
@@ -115,6 +329,10 @@
       activeLevelId,
       style: Object.hasOwn(STYLE_PRESETS, input.style) ? input.style : DEFAULT_STYLE,
       architectureStyle: Object.hasOwn(ARCHITECTURE_PRESETS, input.architectureStyle) ? input.architectureStyle : DEFAULT_ARCHITECTURE_STYLE,
+      renderMode: Object.hasOwn(RENDER_PRESETS, input.renderMode) ? input.renderMode : DEFAULT_RENDER_MODE,
+      lightingPreset: Object.hasOwn(LIGHTING_PRESETS, input.lightingPreset) ? input.lightingPreset : DEFAULT_LIGHTING_PRESET,
+      cameraPreset: Object.hasOwn(CAMERA_PRESETS, input.cameraPreset) ? input.cameraPreset : DEFAULT_CAMERA_PRESET,
+      savedCamera: normalizeCameraView(input.savedCamera),
       sunAngle: finiteNumber(input.sunAngle, 60),
       walls,
       doors: collection(input, 'doors').map(withOpeningLevel),
@@ -136,6 +354,10 @@
       activeLevelId: state.activeLevelId,
       style: state.style,
       architectureStyle: state.architectureStyle,
+      renderMode: state.renderMode,
+      lightingPreset: state.lightingPreset,
+      cameraPreset: state.cameraPreset,
+      savedCamera: state.savedCamera,
       sunAngle: state.sunAngle,
       walls: state.walls,
       doors: state.doors,
@@ -300,6 +522,49 @@
       }
     }
     return faces;
+  }
+
+  function shouldShowRoof({ buildingViewMode, cutawayMode, walkMode }) {
+    return buildingViewMode === 'all' && !cutawayMode && !walkMode;
+  }
+
+  function computeFloorArea(walls) {
+    const polygons = computeFloorPolygons(walls);
+    if (!polygons.length) return null;
+    const areaInSquareCentimeters = polygons.reduce((total, polygon) => Math.abs(polygon.reduce((sum, point, index) => {
+      const next = polygon[(index + 1) % polygon.length];
+      return sum + point.x * next.y - next.x * point.y;
+    }, 0) / 2), 0);
+    return areaInSquareCentimeters / 10000;
+  }
+
+  function getRotatedFootprint(width, depth, rotation = 0) {
+    const w = Math.max(0, finiteNumber(width, 0));
+    const d = Math.max(0, finiteNumber(depth, 0));
+    const angle = finiteNumber(rotation, 0);
+    return {
+      w: Number((Math.abs(w * Math.cos(angle)) + Math.abs(d * Math.sin(angle))).toFixed(6)),
+      d: Number((Math.abs(w * Math.sin(angle)) + Math.abs(d * Math.cos(angle))).toFixed(6)),
+    };
+  }
+
+  function getStairRiseLimit(walls, levelId, fallback = 280) {
+    const defaultLimit = Math.max(1, finiteNumber(fallback, 280));
+    const heights = (Array.isArray(walls) ? walls : [])
+      .filter(wall => !levelId || wall.levelId === levelId)
+      .map(wall => finiteNumber(wall.height, defaultLimit))
+      .filter(height => height > 0);
+    return heights.length ? Math.min(defaultLimit, ...heights) : defaultLimit;
+  }
+
+  function getPreviousLevel(levels, activeLevelId) {
+    const list = Array.isArray(levels) ? levels : [];
+    const active = list.find(level => level.id === activeLevelId) || list[0];
+    if (!active) return null;
+    const activeElevation = finiteNumber(active.elevation, 0);
+    const lower = list.filter(level => finiteNumber(level.elevation, 0) < activeElevation)
+      .sort((a, b) => finiteNumber(a.elevation, 0) - finiteNumber(b.elevation, 0));
+    return lower[lower.length - 1] || null;
   }
 
   function createHistory({ capture, restore, limit = 50 }) {
@@ -479,6 +744,87 @@
       && Math.abs(localY) <= finiteNumber(furniture.d, furniture.h || 0) / 2;
   }
 
+  function normalizeSelectionRect(rect) {
+    const start = rect?.start || rect?.a || rect;
+    const end = rect?.end || rect?.b || rect;
+    const x1 = finiteNumber(start?.x, 0);
+    const y1 = finiteNumber(start?.y, 0);
+    const x2 = finiteNumber(end?.x, x1);
+    const y2 = finiteNumber(end?.y, y1);
+    return { left: Math.min(x1, x2), top: Math.min(y1, y2), right: Math.max(x1, x2), bottom: Math.max(y1, y2) };
+  }
+
+  function selectionRectContainsPoint(rect, point) {
+    return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
+  }
+
+  function rotatedBoxCorners(item, width, depth) {
+    const x = finiteNumber(item.x, 0);
+    const y = finiteNumber(item.y, 0);
+    const halfWidth = Math.max(0, finiteNumber(width, 0)) / 2;
+    const halfDepth = Math.max(0, finiteNumber(depth, 0)) / 2;
+    const rotation = finiteNumber(item.rotation, 0);
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    return [[-halfWidth, -halfDepth], [halfWidth, -halfDepth], [halfWidth, halfDepth], [-halfWidth, halfDepth]]
+      .map(([localX, localY]) => ({ x: x + localX * cos - localY * sin, y: y + localX * sin + localY * cos }));
+  }
+
+  function selectionRectContainsObject(rect, type, item) {
+    if (type === 'wall' || type === 'dimension') {
+      return selectionRectContainsPoint(rect, { x: finiteNumber(item.x1, 0), y: finiteNumber(item.y1, 0) })
+        && selectionRectContainsPoint(rect, { x: finiteNumber(item.x2, 0), y: finiteNumber(item.y2, 0) });
+    }
+    if (type === 'door' || type === 'window') {
+      return selectionRectContainsPoint(rect, { x: finiteNumber(item.x, 0), y: finiteNumber(item.y, 0) });
+    }
+    if (type === 'furniture') {
+      return rotatedBoxCorners(item, item.w, item.d ?? item.h).every(point => selectionRectContainsPoint(rect, point));
+    }
+    if (type === 'stair') {
+      return rotatedBoxCorners(item, item.width, item.length).every(point => selectionRectContainsPoint(rect, point));
+    }
+    if (Number.isFinite(Number(item.x1)) && Number.isFinite(Number(item.y1))
+      && Number.isFinite(Number(item.x2)) && Number.isFinite(Number(item.y2))) {
+      return selectionRectContainsObject(rect, 'dimension', item);
+    }
+    if (Number.isFinite(Number(item.x)) && Number.isFinite(Number(item.y))) {
+      const width = item.w ?? item.width;
+      const depth = item.d ?? item.length ?? item.h;
+      if (width != null && depth != null) return rotatedBoxCorners(item, width, depth).every(point => selectionRectContainsPoint(rect, point));
+      return selectionRectContainsPoint(rect, item);
+    }
+    return false;
+  }
+
+  function getVisibleLevelIds(levels, activeLevelId, mode) {
+    const list = Array.isArray(levels) ? levels : [];
+    if (mode === 'all') return list.map(level => level.id).filter(Boolean);
+    const active = list.find(level => level.id === activeLevelId) || list[0];
+    if (!active) return [];
+    const activeElevation = finiteNumber(active.elevation, 0);
+    return list.filter(level => finiteNumber(level.elevation, 0) <= activeElevation).map(level => level.id).filter(Boolean);
+  }
+
+  function selectObjectsInRect(project, rect, levelId) {
+    const normalizedRect = normalizeSelectionRect(rect);
+    const selected = [];
+    const sameLevel = item => !levelId || !item.levelId || item.levelId === levelId;
+    const add = (type, items) => {
+      for (const item of Array.isArray(items) ? items : []) {
+        if (sameLevel(item) && item.id && selectionRectContainsObject(normalizedRect, type, item)) selected.push({ type, id: item.id });
+      }
+    };
+    add('wall', project?.walls);
+    add('door', project?.doors);
+    add('window', project?.windows);
+    add('room', project?.rooms);
+    add('furniture', project?.furnitures);
+    add('dimension', project?.dimensions);
+    add('stair', project?.stairs);
+    return selected;
+  }
+
   function computeObjectSnap(item, options) {
     const threshold = Math.max(0, finiteNumber(options?.threshold, 12));
     const rawX = finiteNumber(item?.x, 0);
@@ -551,5 +897,5 @@
     });
   }
 
-  return { CURRENT_VERSION, LOCAL_DRAFT_KEY, DEFAULT_LEVEL, DEFAULT_STYLE, DEFAULT_ARCHITECTURE_STYLE, FURNITURE_DEFAULTS, STYLE_PRESETS, ARCHITECTURE_PRESETS, normalizeProject, serializeProject, saveLocalDraft, loadLocalDraft, getNextObjectId, getNextLevelId, getNextLevelElevation, duplicateLevel, computeFloorPolygons, createHistory, computeWallSegments, computeCutawayWallIds, computeDoorPose, getOpeningOffset, placeOpeningOnWall, hitTestFurniture, computeObjectSnap, filterFurnitureCatalog };
+  return { CURRENT_VERSION, LOCAL_DRAFT_KEY, DEFAULT_LEVEL, DEFAULT_CEILING, DEFAULT_STYLE, DEFAULT_ARCHITECTURE_STYLE, DEFAULT_RENDER_MODE, RENDER_PRESETS, DEFAULT_LIGHTING_PRESET, LIGHTING_PRESETS, DEFAULT_CAMERA_PRESET, CAMERA_PRESETS, MATERIAL_PRESETS, ROOM_TEMPLATES, FURNITURE_DEFAULTS, STYLE_PRESETS, ARCHITECTURE_PRESETS, shouldShowRoof, normalizeCameraView, computeRenderExportSize, getMaterialRepeat, getDefaultFloorMaterialId, computeGroundingTranslation, computeShadowCameraExtent, computePracticalLightIntensity, applyMaterialBrush, createRoomTemplate, normalizeProject, serializeProject, saveLocalDraft, loadLocalDraft, getNextObjectId, getNextLevelId, getNextLevelElevation, duplicateLevel, computeFloorPolygons, computeFloorArea, getRotatedFootprint, getStairRiseLimit, getPreviousLevel, createHistory, computeWallSegments, computeCutawayWallIds, computeDoorPose, getOpeningOffset, placeOpeningOnWall, hitTestFurniture, getVisibleLevelIds, selectObjectsInRect, computeObjectSnap, filterFurnitureCatalog };
 });
