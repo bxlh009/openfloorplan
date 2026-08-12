@@ -1,9 +1,10 @@
 {
   "name": "openfloorplan",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "private": true,
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "check": "node --check js/project.js && node --check js/state.js && node --check js/draw2d.js && node --check js/view3d.js && node --check js/tools.js && node --check js/ui.js && node --check js/app.js && node --check js/i18n.js"
+    "check": "node --check js/project.js && node --check js/state.js && node --check js/draw2d.js && node --check js/view3d.js && node --check js/tools.js && node --check js/ui.js && node --check js/app.js && node --check js/i18n.js && node --check js/vendor/loaders/GLTFLoader.js && node --check js/vendor/utils/BufferGeometryUtils.js",
+    "test:visual": "node tests/visual-smoke.mjs"
   }
 }

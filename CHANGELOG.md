@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.5.8 - 2026-08-12
+
+- Replace visually mismatched ornate sofa and coffee-table assets with an explicitly modern procedural sofa plus a locally bundled CC0 round stone table; keep the verified modern media cabinet.
+- Load self-contained local glTF furniture with verified buffer/texture references, dimension-aware scaling and automatic grounding while retaining procedural fallbacks.
+- Add tight house-sized shadow-camera bounds, physically scaled practical-light intensity, room-aware photo lights and a sky environment for clearer interior depth.
+- Rebalance photo-mode exposure toward soft skylight and away from clipped direct sun, retaining readable white walls and gentler window-shadow boundaries.
+- Give living, bedroom, dining and study templates editable doors and windows, and refine living-room dimensions and eye-level composition.
+- Replace square-looking procedural wood floors with modern long-plank dimensions and a local CC0 photo-scanned PBR wood set containing diffuse, OpenGL normal and roughness maps.
+- Make legacy/default wood, tile and concrete finishes resolve to modern light oak, 120×60 cm travertine slabs and warm-grey microcement instead of stale fallback textures.
+- Ground every generated furniture group from its actual lowest visible geometry, fixing floating TV and beveled furniture while keeping selection and contact shadows on the floor plane.
+- Raise realtime/photo viewport quality with 2048/4096 shadow maps, 8×/16× anisotropic filtering, richer contrast and capped 1.75×/2.5× pixel ratios.
+- Add real-scale procedural bump materials, wall/floor and furniture contact shadows, a gradient sky, transmissive clear-coated window glass and rounded upholstered geometry.
+- Export PNG at 1.5× or 2× viewport resolution within a 16-megapixel safety budget, restoring the interactive renderer after capture.
+- Add independent daylight, warm-night and studio lighting presets plus eye-level, bird, isometric and exterior camera presets with one saved custom view.
+- Add per-level parameterized ceilings, cove lighting and downlights; ceiling panels stay hidden while inspecting that level's interior.
+- Add six real-scale procedural materials for floors, walls and furniture, including pick/apply material-brush controls.
+- Add editable living-room, bedroom, dining-room and study templates that generate ordinary walls, room metadata and furniture.
+- Add switchable realtime and warm-photo rendering modes; the selected mode is preserved in JSON exports and local drafts.
+- Keep editing responsive with a capped pixel ratio, while photo mode raises output density, uses warmer practical lights and deeper light contrast.
+- Upgrade the 3D presentation layer with tone mapping, neutral ambient lighting, soft site shadows and style-aware ground/roof materials.
+- Add a clean roof cap and eave band for exterior views, and hide it automatically in cutaway/interior views.
+- Expand floor slabs beneath wall thickness and add subtle plaster, wood-board and roof textures to reduce gaps, flat gray surfaces and color bands.
+- Improve exterior camera framing and rebuild disposal so repeated style/level changes do not leave stale geometry behind.
+
 ## 0.5.7 - 2026-08-12
 
 - Make floor slab edges unlit solid-color fascias so directional shadows cannot create a false dark color band.

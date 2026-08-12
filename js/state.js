@@ -17,6 +17,7 @@ const State = {
   nextId: 1,
   pendingFurniture: null,
   pendingFurnitureRotation: 0,
+  materialBrushId: null,
 
   zoom: 1,
   panX: 0,
@@ -39,6 +40,10 @@ const State = {
   // Whole-home style preset; see ProjectModel.STYLE_PRESETS.
   style: 'modern',
   architectureStyle: 'modern',
+  renderMode: 'realtime',
+  lightingPreset: 'daylight',
+  cameraPreset: 'isometric',
+  savedCamera: null,
   // Furniture category filter
   furnitureCategory: 'all',
   // Sun controls
@@ -51,7 +56,7 @@ function snapshot() {
     levels: State.levels, activeLevelId: State.activeLevelId,
     walls: State.walls, doors: State.doors, windows: State.windows,
     rooms: State.rooms, furnitures: State.furnitures, dimensions: State.dimensions, stairs: State.stairs,
-    nextId: State.nextId, style: State.style, architectureStyle: State.architectureStyle, sunAngle: State.sunAngle,
+    nextId: State.nextId, style: State.style, architectureStyle: State.architectureStyle, renderMode: State.renderMode, lightingPreset: State.lightingPreset, cameraPreset: State.cameraPreset, savedCamera: State.savedCamera, sunAngle: State.sunAngle,
   });
 }
 function _restore(json) {
@@ -68,6 +73,10 @@ function _restore(json) {
   State.nextId = data.nextId;
   State.style = data.style || ProjectModel.DEFAULT_STYLE;
   State.architectureStyle = data.architectureStyle || ProjectModel.DEFAULT_ARCHITECTURE_STYLE;
+  State.renderMode = data.renderMode || ProjectModel.DEFAULT_RENDER_MODE;
+  State.lightingPreset = data.lightingPreset || ProjectModel.DEFAULT_LIGHTING_PRESET;
+  State.cameraPreset = data.cameraPreset || ProjectModel.DEFAULT_CAMERA_PRESET;
+  State.savedCamera = data.savedCamera || null;
   State.sunAngle = data.sunAngle || 60;
   State.activeObject = null;
   State.activeType = null;
@@ -116,7 +125,7 @@ function restoreLocalDraft() {
   State.walls = data.walls; State.doors = data.doors; State.windows = data.windows;
   State.rooms = data.rooms; State.furnitures = data.furnitures; State.dimensions = data.dimensions; State.stairs = data.stairs;
   State.levels = data.levels; State.activeLevelId = data.activeLevelId;
-  State.style = data.style; State.architectureStyle = data.architectureStyle; State.sunAngle = data.sunAngle;
+  State.style = data.style; State.architectureStyle = data.architectureStyle; State.renderMode = data.renderMode; State.lightingPreset = data.lightingPreset; State.cameraPreset = data.cameraPreset; State.savedCamera = data.savedCamera; State.sunAngle = data.sunAngle;
   State.nextId = ProjectModel.getNextObjectId(data);
   State.activeObject = null; State.activeType = null;
   State.selectedObjects = []; State.selectionBox = null;

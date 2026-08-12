@@ -78,6 +78,14 @@ body {
 .floor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
 .floor-grid button { border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--muted); padding: 8px 3px; font-size: 10px; cursor: pointer; }
 .floor-grid button.active { color: var(--accent); border-color: var(--accent); background: rgba(0,113,227,.08); }
+.material-select { display: grid; gap: 4px; margin-top: 9px; color: var(--muted); font-size: 10px; }
+.material-select select { width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.material-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 7px; }
+.material-actions button { border: 1px solid var(--border); border-radius: 6px; background: var(--surface); padding: 7px 3px; font-size: 10px; cursor: pointer; }
+.material-actions button:hover { color: var(--accent); border-color: var(--accent); }
+.template-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.template-grid button { border: 1px solid var(--border); border-radius: 7px; background: linear-gradient(145deg, var(--surface), rgba(0,113,227,.05)); padding: 10px 4px; cursor: pointer; }
+.template-grid button:hover { color: var(--accent); border-color: var(--accent); }
 
 .sidebar {
   width: 240px;
@@ -145,6 +153,9 @@ body {
 }
 .snap-toggle { display: flex; align-items: center; gap: 6px; margin: -1px 0 8px; color: var(--muted); font-size: 10px; line-height: 1.3; cursor: pointer; }
 .snap-toggle input { accent-color: var(--accent); }
+.compact-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.compact-controls label { display: grid; gap: 3px; color: var(--muted); font-size: 10px; }
+.compact-controls input, .compact-controls select { min-width: 0; width: 100%; padding: 5px 6px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); }
 .catalog-search:focus { outline: 2px solid rgba(0,113,227,0.22); border-color: var(--accent); }
 .catalog-categories { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 7px; scrollbar-width: thin; }
 .catalog-category { flex: 0 0 auto; padding: 4px 7px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 11px; cursor: pointer; }
