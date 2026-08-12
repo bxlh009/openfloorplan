@@ -2,7 +2,7 @@
 
 一个本地优先、无需账号的 2D/3D 户型设计器。
 
-Current version: `0.5.5`
+Current version: `0.5.6`
 
 在线 Demo：由 GitHub Pages 从 `main` 分支自动部署；部署成功后访问 `https://bxlh009.github.io/openfloorplan/`。
 

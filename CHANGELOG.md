@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.6 - 2026-08-12
+
+- Separate textured floor tops from solid slab sides and undersides to remove stretched texture bands and excessive edge color contrast in 3D.
+
 ## 0.5.5 - 2026-08-12
 
 - Add right-click 90° rotation for furniture placement and selected 2D furniture, with rotated preview and footprint-aware snapping.

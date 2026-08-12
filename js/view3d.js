@@ -86,7 +86,12 @@
     const baseY = levelElevation(currentLevel.id);
     const floorThickness = Math.max(0.02, (currentLevel.floorThickness || 20) / 100);
     const tex = makeFloorTexture(currentLevel.floorFinish);
-    const floorMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.05 });
+    const floorTopMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.05 });
+    const floorSideMat = new THREE.MeshStandardMaterial({
+      color: getStylePreset().floor,
+      roughness: 0.92,
+      metalness: 0.0,
+    });
     const polygons = ProjectModel.computeFloorPolygons(State.walls.filter(wall => wall.levelId === currentLevel.id));
     if (polygons.length) {
       for (const polygon of polygons) {
@@ -96,7 +101,8 @@
           shape[method](point.x / 100, -point.y / 100);
         });
         shape.closePath();
-        const floor = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: floorThickness, bevelEnabled: false }), floorMat.clone());
+        const geometry = new THREE.ExtrudeGeometry(shape, { depth: floorThickness, bevelEnabled: false });
+        const floor = new THREE.Mesh(geometry, [floorTopMat.clone(), floorSideMat.clone()]);
         floor.rotation.x = -Math.PI / 2;
         floor.position.y = baseY - floorThickness + 0.002;
         floor.receiveShadow = true;
@@ -104,7 +110,9 @@
       }
       return;
     }
-    const floor = new THREE.Mesh(new THREE.BoxGeometry(fw, floorThickness, fd), floorMat);
+    const geometry = new THREE.BoxGeometry(fw, floorThickness, fd);
+    geometry.groups.forEach(group => { group.materialIndex = group.materialIndex === 2 ? 0 : 1; });
+    const floor = new THREE.Mesh(geometry, [floorTopMat, floorSideMat]);
     floor.position.set(cx, baseY - floorThickness / 2, cz);
     floor.receiveShadow = true;
     floorGroup.add(floor);
