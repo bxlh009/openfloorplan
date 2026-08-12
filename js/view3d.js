@@ -87,10 +87,10 @@
     const floorThickness = Math.max(0.02, (currentLevel.floorThickness || 20) / 100);
     const tex = makeFloorTexture(currentLevel.floorFinish);
     const floorTopMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.05 });
-    const floorSideMat = new THREE.MeshStandardMaterial({
+    // The slab edge is a visual fascia, not a textured wall. Keep it unlit so
+    // grazing angles and cast shadows do not turn the same floor finish brown.
+    const floorSideMat = new THREE.MeshBasicMaterial({
       color: getStylePreset().floor,
-      roughness: 0.92,
-      metalness: 0.0,
     });
     const polygons = ProjectModel.computeFloorPolygons(State.walls.filter(wall => wall.levelId === currentLevel.id));
     if (polygons.length) {

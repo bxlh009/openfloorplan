@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.7 - 2026-08-12
+
+- Make floor slab edges unlit solid-color fascias so directional shadows cannot create a false dark color band.
+
 ## 0.5.6 - 2026-08-12
 
 - Separate textured floor tops from solid slab sides and undersides to remove stretched texture bands and excessive edge color contrast in 3D.
