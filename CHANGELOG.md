@@ -1,7 +1,41 @@
 # Changelog
 
+## 0.6.0 - 2026-09-16
+
+- Replace simplified plant blobs with curved leaves, branching stems and an open planter; add fabric floor-lamp shades and two-sided lever door hardware.
+- Use radius-aware PCF shadow filtering for softer sun and practical-light edges.
+
+- Add an interior photography camera with level verticals, room-aware framing, enclosed walls and a presentation ceiling.
+- Add pleated linen curtains in photo mode, micro-weave fabric shading, subtler plaster relief and more restrained ambient lighting.
+- Verify interior camera switching and clean high-resolution PNG export in the browser smoke test.
+
+- Correct centimetre-to-metre conversion in live wall measurements and preserve exact endpoint snapping.
+- Keep shared wall joints and attached openings connected during endpoint, wall-length, angle and wall-drag edits.
+- Commit property changes after input completion; expose undo, redo, example and fit controls.
+- Retain the previous valid autosave, recover damaged drafts, and reject detected stale-tab writes.
+- Limit JSON imports to 10 MB and report file-read failures without replacing the current design.
+
 ## 0.5.8 - 2026-08-12
 
+- Add five physically scaled wall finishes: warm-white, blush-pink and sage plaster, 60×30 cm bathroom tile and full-height timber slats; keep finish phase continuous across door/window wall segments.
+- Add large-format ivory porcelain and light terrazzo, and make every floor-finish/material action update the room-level surfaces that are actually visible in complete homes.
+- Make six modern door-and-furniture styles apply to the whole home or one selected item, including style-specific door frames, leaf profiles, colours and furniture proportions.
+- Replace the emoji furniture catalogue with consistent inline SVG icons and fix category tabs/search results hidden by the tool-card flex rule.
+- Enforce hard collision, wall/floor containment and 25 cm ordinary-furniture clearance across placement, rotation, property edits, 2D dragging and 3D dragging; retain intentional rugs, wall art and grouped cabinet runs.
+- Infer and refresh furniture room ownership from its full rotated footprint, remap room relationships when duplicating a level and migrate the previous complete-home layout to the corrected spacing.
+- Replace blue 2D window bars with architectural opening/frame linework, and dispose dynamic light shadows and colour-independent surface textures during repeated 3D rebuilds.
+- Add a complete editable modern two-bedroom home with living room, kitchen/dining, hallway, two bedrooms, bathroom, an exterior entry and real interior door connections.
+- Add individual kitchen and bathroom templates, room-name labels in the 2D plan and automatic whole-plan fitting after full-home generation.
+- Render each room's assigned 3D floor finish so wet rooms, kitchen and bedrooms are visually distinct instead of sharing one uninterrupted wood surface.
+- Keep living-room artwork on a wall retained by the default cutaway, migrate the recognizable legacy placement and widen isometric framing to keep the complete home in view.
+- Fix non-origin room templates applying their offset twice to wall-mounted artwork; restore affected local drafts by rebinding recognizable legacy artwork to its template wall.
+- Attach additional room templates directly to the existing building, subtract overlapping shared-wall spans and preserve openings instead of creating disconnected one-metre-gap boxes.
+- Reject newly placed stairs outside the current floor polygon; keep invalid legacy stairs editable in 2D while hiding them from 3D and reporting their count.
+- Tighten isometric framing so multi-room layouts fill the viewport instead of appearing as a tiny model in empty canvas space.
+- Add a verified local Poly Haven Studio HDR environment with PMREM lighting for photo mode while retaining the sky fallback.
+- Replace the temporary two-chair sofa approximation with Khronos' 3 MB Glam Velvet Sofa, selecting its official neutral Champagne material variant and preserving a procedural fallback.
+- Add the Poly Haven Modern Arm Chair 01, a woven rug and wall artwork to the living-room template; keep all ordinary furniture grounded from its visible geometry.
+- Move the eye-level camera farther outside the cutaway room to reduce foreground distortion, and keep the living-room door slightly ajar instead of blocking the composition at 90 degrees.
 - Replace visually mismatched ornate sofa and coffee-table assets with an explicitly modern procedural sofa plus a locally bundled CC0 round stone table; keep the verified modern media cabinet.
 - Load self-contained local glTF furniture with verified buffer/texture references, dimension-aware scaling and automatic grounding while retaining procedural fallbacks.
 - Add tight house-sized shadow-camera bounds, physically scaled practical-light intensity, room-aware photo lights and a sky environment for clearer interior depth.

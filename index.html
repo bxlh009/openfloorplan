@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>户型设计师</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="css/style.css?v=0.5.8-6">
+<link rel="stylesheet" href="css/style.css?v=0.5.8-12">
 </head>
 <body>
 <header class="topbar">
@@ -18,6 +18,8 @@
   <div class="actions">
     <span class="autosave-badge" data-i18n="status.autosave">本地自动保存</span>
     <button id="btn-new" data-i18n="action.new">新建</button>
+    <button id="btn-undo" data-i18n="action.undo">撤销</button>
+    <button id="btn-redo" data-i18n="action.redo">重做</button>
     <button id="btn-save" data-i18n="action.save">导出备份</button>
     <button id="btn-load" data-i18n="action.load">载入</button>
     <button id="btn-export" data-i18n="action.exportSvg">导出 SVG</button>
@@ -39,6 +41,10 @@
   <aside class="sidebar">
     <section class="panel build-note" id="panel-project">
       <h3 data-i18n="section.project">项目定位</h3>
+      <button id="btn-example" type="button" data-i18n="action.example">体验完整两居示例</button>
+      <button id="btn-fit" type="button" data-i18n="action.fit">显示全部户型</button>
+      <p data-i18n="help.editing">先画房间，再放门窗和家具。选中墙体后可输入精确长度与角度；共享端点和门窗会随墙更新。</p>
+      <button id="btn-recover" type="button" data-i18n="action.recover">恢复上一份草稿</button>
       <p data-i18n="safety.concept">用于空间与装修概念设计；结构、消防、报批与施工请按当地规范交由专业人员复核。</p>
     </section>
 
@@ -59,7 +65,7 @@
       <div class="tool-grid">
         <button class="tool" data-tool="select" data-i18n-title="tool.select" title="选择 (V)"><span class="ico">↖</span><span data-i18n="tool.select">选择</span></button>
         <button class="tool" data-tool="wall" data-i18n-title="tool.wall" title="画墙 (W)"><span class="ico">▬</span><span data-i18n="tool.wall">墙体</span></button>
-        <button class="tool" data-tool="door" data-i18n-title="tool.door" title="门 (D)"><span class="ico">🚪</span><span data-i18n="tool.door">门</span></button>
+        <button class="tool" data-tool="door" data-i18n-title="tool.door" title="门 (D)"><span class="ico">▯</span><span data-i18n="tool.door">门</span></button>
         <button class="tool" data-tool="window" data-i18n-title="tool.window" title="窗 (F)"><span class="ico">▭</span><span data-i18n="tool.window">窗</span></button>
         <button class="tool" data-tool="room" data-i18n-title="tool.room" title="房间 (R)"><span class="ico">▣</span><span data-i18n="tool.room">房间</span></button>
         <button class="tool" data-tool="dimension" data-i18n-title="tool.dimension" title="标注 (M)"><span class="ico">↔</span><span data-i18n="tool.dimension">标注</span></button>
@@ -81,6 +87,8 @@
           <option value="oakWarm" data-i18n="material.oakWarm">暖色哑光橡木</option>
           <option value="walnut" data-i18n="material.walnut">深胡桃木长板</option>
           <option value="travertine" data-i18n="material.travertine">米白洞石大板</option>
+          <option value="porcelainIvory" data-i18n="material.porcelainIvory">象牙白柔光地砖</option>
+          <option value="terrazzoLight" data-i18n="material.terrazzoLight">浅色水磨石地砖</option>
           <option value="microcement" data-i18n="material.microcement">暖灰微水泥</option>
           <option value="linen" data-i18n="material.linen">亚麻</option>
         </select>
@@ -90,6 +98,19 @@
         <button id="btn-material-selected" type="button" data-i18n="material.applySelected">应用到所选</button>
         <button id="btn-material-pick" type="button" data-i18n="material.pick">吸取所选</button>
         <button id="btn-material-brush" type="button" data-i18n="material.brush">刷到所选</button>
+      </div>
+      <label class="material-select"><span data-i18n="wallFinish.preset">墙面粉刷与饰面</span>
+        <select id="wall-finish-select">
+          <option value="warmWhitePlaster" data-i18n="wallFinish.warmWhitePlaster">暖白细砂粉墙</option>
+          <option value="blushPlaster" data-i18n="wallFinish.blushPlaster">雾粉矿物粉墙</option>
+          <option value="sagePlaster" data-i18n="wallFinish.sagePlaster">鼠尾草绿粉墙</option>
+          <option value="bathroomTile" data-i18n="wallFinish.bathroomTile">卫生间哑光墙砖</option>
+          <option value="woodSlats" data-i18n="wallFinish.woodSlats">胡桃木格栅墙</option>
+        </select>
+      </label>
+      <div class="material-actions">
+        <button id="btn-wall-finish-selected" type="button" data-i18n="wallFinish.applySelected">应用到所选墙</button>
+        <button id="btn-wall-finish-level" type="button" data-i18n="wallFinish.applyLevel">应用到本层墙</button>
       </div>
     </section>
 
@@ -106,11 +127,14 @@
     <section class="panel" id="panel-room-templates">
       <h3 data-i18n="section.roomTemplates">房间模板</h3>
       <p class="hint" data-i18n="roomTemplate.hint">一键生成后仍可逐项编辑墙体和家具</p>
+      <button type="button" class="home-template-button" data-home-template="modernTwoBedroom" data-i18n="homeTemplate.modernTwoBedroom">生成完整现代两居</button>
       <div class="template-grid">
         <button type="button" data-room-template="living" data-i18n="roomTemplate.living">客厅</button>
         <button type="button" data-room-template="bedroom" data-i18n="roomTemplate.bedroom">卧室</button>
         <button type="button" data-room-template="dining" data-i18n="roomTemplate.dining">餐厅</button>
         <button type="button" data-room-template="study" data-i18n="roomTemplate.study">书房</button>
+        <button type="button" data-room-template="kitchen" data-i18n="roomTemplate.kitchen">厨房</button>
+        <button type="button" data-room-template="bathroom" data-i18n="roomTemplate.bathroom">卫生间</button>
       </div>
     </section>
 
@@ -124,6 +148,7 @@
         <button class="style-card" data-architecture="industrial" aria-pressed="false"><span class="architecture-swatch architecture-industrial"></span><span data-i18n="style.industrial">工业</span></button>
         <button class="style-card" data-architecture="american" aria-pressed="false"><span class="architecture-swatch architecture-american"></span><span data-i18n="style.american">美式</span></button>
       </div>
+      <p class="hint style-hint" data-i18n="style.hint">这里切换全屋；选中单扇门或单件家具后可在属性中单独换样式。</p>
     </section>
 
     <section class="panel">
@@ -139,21 +164,24 @@
         <button class="catalog-category" data-furniture-category="decor" aria-pressed="false" data-i18n="category.decor">装饰</button>
       </div>
       <div class="tool-grid" id="furniture-grid">
-        <button class="tool" data-furniture="sofa" data-category="living"><span>🛋</span> <span data-i18n="furniture.sofa">沙发</span></button>
-        <button class="tool" data-furniture="bed" data-category="bedroom"><span>🛏</span> <span data-i18n="furniture.bed">床</span></button>
-        <button class="tool" data-furniture="table" data-category="living"><span>🍽</span> <span data-i18n="furniture.table">餐桌</span></button>
-        <button class="tool" data-furniture="wardrobe" data-category="bedroom"><span>🗄</span> <span data-i18n="furniture.wardrobe">衣柜</span></button>
-        <button class="tool" data-furniture="desk" data-category="work"><span>🪑</span> <span data-i18n="furniture.desk">书桌</span></button>
-        <button class="tool" data-furniture="cabinet" data-category="kitchen"><span>🗄</span> <span data-i18n="furniture.cabinet">橱柜</span></button>
-        <button class="tool" data-furniture="plant" data-category="decor"><span>🪴</span> <span data-i18n="furniture.plant">盆栽</span></button>
-        <button class="tool" data-furniture="lamp" data-category="decor"><span>💡</span> <span data-i18n="furniture.lamp">落地灯</span></button>
-        <button class="tool" data-furniture="toilet" data-category="bath"><span>🚽</span> <span data-i18n="furniture.toilet">马桶</span></button>
-        <button class="tool" data-furniture="bathtub" data-category="bath"><span>🛁</span> <span data-i18n="furniture.bathtub">浴缸</span></button>
-        <button class="tool" data-furniture="sink" data-category="kitchen"><span>🚰</span> <span data-i18n="furniture.sink">水槽</span></button>
-        <button class="tool" data-furniture="stove" data-category="kitchen"><span>🔥</span> <span data-i18n="furniture.stove">灶台</span></button>
-        <button class="tool" data-furniture="fridge" data-category="kitchen"><span>🧊</span> <span data-i18n="furniture.fridge">冰箱</span></button>
-        <button class="tool" data-furniture="washer" data-category="bath"><span>🌀</span> <span data-i18n="furniture.washer">洗衣机</span></button>
-        <button class="tool" data-furniture="tv" data-category="living"><span>📺</span> <span data-i18n="furniture.tv">电视</span></button>
+        <button class="tool" data-furniture="sofa" data-category="living"><span class="catalog-icon" data-catalog-icon="sofa" aria-hidden="true"></span><span data-i18n="furniture.sofa">沙发</span></button>
+        <button class="tool" data-furniture="armchair" data-category="living"><span class="catalog-icon" data-catalog-icon="chair" aria-hidden="true"></span><span data-i18n="furniture.armchair">现代扶手椅</span></button>
+        <button class="tool" data-furniture="rug" data-category="decor"><span class="catalog-icon" data-catalog-icon="rug" aria-hidden="true"></span><span data-i18n="furniture.rug">地毯</span></button>
+        <button class="tool" data-furniture="artwork" data-category="decor"><span class="catalog-icon" data-catalog-icon="art" aria-hidden="true"></span><span data-i18n="furniture.artwork">现代墙画</span></button>
+        <button class="tool" data-furniture="bed" data-category="bedroom"><span class="catalog-icon" data-catalog-icon="bed" aria-hidden="true"></span><span data-i18n="furniture.bed">床</span></button>
+        <button class="tool" data-furniture="table" data-category="living"><span class="catalog-icon" data-catalog-icon="table" aria-hidden="true"></span><span data-i18n="furniture.table">餐桌</span></button>
+        <button class="tool" data-furniture="wardrobe" data-category="bedroom"><span class="catalog-icon" data-catalog-icon="storage" aria-hidden="true"></span><span data-i18n="furniture.wardrobe">衣柜</span></button>
+        <button class="tool" data-furniture="desk" data-category="work"><span class="catalog-icon" data-catalog-icon="desk" aria-hidden="true"></span><span data-i18n="furniture.desk">书桌</span></button>
+        <button class="tool" data-furniture="cabinet" data-category="kitchen"><span class="catalog-icon" data-catalog-icon="storage" aria-hidden="true"></span><span data-i18n="furniture.cabinet">橱柜</span></button>
+        <button class="tool" data-furniture="plant" data-category="decor"><span class="catalog-icon" data-catalog-icon="plant" aria-hidden="true"></span><span data-i18n="furniture.plant">盆栽</span></button>
+        <button class="tool" data-furniture="lamp" data-category="decor"><span class="catalog-icon" data-catalog-icon="lamp" aria-hidden="true"></span><span data-i18n="furniture.lamp">落地灯</span></button>
+        <button class="tool" data-furniture="toilet" data-category="bath"><span class="catalog-icon" data-catalog-icon="toilet" aria-hidden="true"></span><span data-i18n="furniture.toilet">马桶</span></button>
+        <button class="tool" data-furniture="bathtub" data-category="bath"><span class="catalog-icon" data-catalog-icon="bath" aria-hidden="true"></span><span data-i18n="furniture.bathtub">浴缸</span></button>
+        <button class="tool" data-furniture="sink" data-category="kitchen"><span class="catalog-icon" data-catalog-icon="sink" aria-hidden="true"></span><span data-i18n="furniture.sink">水槽</span></button>
+        <button class="tool" data-furniture="stove" data-category="kitchen"><span class="catalog-icon" data-catalog-icon="stove" aria-hidden="true"></span><span data-i18n="furniture.stove">灶台</span></button>
+        <button class="tool" data-furniture="fridge" data-category="kitchen"><span class="catalog-icon" data-catalog-icon="fridge" aria-hidden="true"></span><span data-i18n="furniture.fridge">冰箱</span></button>
+        <button class="tool" data-furniture="washer" data-category="bath"><span class="catalog-icon" data-catalog-icon="washer" aria-hidden="true"></span><span data-i18n="furniture.washer">洗衣机</span></button>
+        <button class="tool" data-furniture="tv" data-category="living"><span class="catalog-icon" data-catalog-icon="tv" aria-hidden="true"></span><span data-i18n="furniture.tv">电视</span></button>
       </div>
       <p class="catalog-empty" id="furniture-empty" data-i18n="furniture.empty" hidden>没有匹配的家具</p>
     </section>
@@ -190,14 +218,15 @@
 <script src="js/vendor/three.min.js"></script>
 <script>
 window.modelLoaderReady = import('./js/vendor/loaders/GLTFLoader.js').then(module => module.GLTFLoader);
+window.hdrLoaderReady = import('./js/vendor/loaders/RGBELoader.js').then(module => module.RGBELoader);
 </script>
-<script src="js/project.js?v=0.5.8-6"></script>
-<script src="js/i18n.js?v=0.5.8-6"></script>
-<script src="js/state.js?v=0.5.8-6"></script>
-<script src="js/draw2d.js?v=0.5.8-6"></script>
-<script src="js/view3d.js?v=0.5.8-6"></script>
-<script src="js/tools.js?v=0.5.8-6"></script>
-<script src="js/ui.js?v=0.5.8-6"></script>
-<script src="js/app.js?v=0.5.8-6"></script>
+<script src="js/project.js?v=0.5.8-12"></script>
+<script src="js/i18n.js?v=0.5.8-12"></script>
+<script src="js/state.js?v=0.5.8-12"></script>
+<script src="js/draw2d.js?v=0.5.8-12"></script>
+<script src="js/view3d.js?v=0.5.8-12"></script>
+<script src="js/tools.js?v=0.5.8-12"></script>
+<script src="js/ui.js?v=0.5.8-12"></script>
+<script src="js/app.js?v=0.5.8-12"></script>
 </body>
 </html>

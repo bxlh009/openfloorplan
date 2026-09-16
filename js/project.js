@@ -20,7 +20,7 @@
     photo: {
       pixelRatioCap: 2.5, shadowMapSize: 4096, anisotropy: 16, textureDetail: 1024,
       exportScale: 2, contactShadowOpacity: 0.17,
-      exposure: 1.02, ambient: 0.25, hemisphere: 0.36, sun: 0.98, practicalLights: true,
+      exposure: 0.94, ambient: 0.10, hemisphere: 0.22, sun: 1.05, practicalLights: true,
     },
   };
   const DEFAULT_LIGHTING_PRESET = 'daylight';
@@ -31,9 +31,10 @@
   };
   const DEFAULT_CAMERA_PRESET = 'isometric';
   const CAMERA_PRESETS = {
-    eye: { theta: 0.78, phi: 1.36, radiusScale: 1.15, fov: 58 },
+    interior: { theta: 0.78, phi: 1.57, radiusScale: 1, fov: 65 },
+    eye: { theta: -2.36, phi: 1.34, radiusScale: 1.12, fov: 56 },
     bird: { theta: 0.78, phi: 0.28, radiusScale: 1.45, fov: 52 },
-    isometric: { theta: 0.78, phi: 0.92, radiusScale: 1.65, fov: 54 },
+    isometric: { theta: 0.78, phi: 0.92, radiusScale: 1.2, fov: 48 },
     exterior: { theta: 0.62, phi: 1.04, radiusScale: 1.9, fov: 50 },
   };
   const DEFAULT_CEILING = { enabled: false, drop: 15, thickness: 8, coveLight: false, downlights: 0, color: '#f7f3ed' };
@@ -42,8 +43,20 @@
     oakWarm: { color: '#b9895e', colorAlt: '#8f6242', pattern: 'wood', scaleCm: 18, plankLengthCm: 160, plankWidthCm: 18, boardsPerTile: 4, pbrFloorAsset: 'wood_floor_040', pbrFiles: { diff: 'WoodFloor040_1K-JPG_Color.jpg', normal: 'WoodFloor040_1K-JPG_NormalGL.jpg', roughness: 'WoodFloor040_1K-JPG_Roughness.jpg' }, pbrTint: '#d7aa80', pbrSizeCm: 190, roughness: 0.64, metalness: 0 },
     walnut: { color: '#6b4934', colorAlt: '#422c22', pattern: 'wood', scaleCm: 16, plankLengthCm: 140, plankWidthCm: 16, boardsPerTile: 4, pbrFloorAsset: 'wood_floor_040', pbrFiles: { diff: 'WoodFloor040_1K-JPG_Color.jpg', normal: 'WoodFloor040_1K-JPG_NormalGL.jpg', roughness: 'WoodFloor040_1K-JPG_Roughness.jpg' }, pbrTint: '#704d3d', pbrSizeCm: 190, roughness: 0.6, metalness: 0 },
     travertine: { color: '#d9c7aa', colorAlt: '#b9a17d', pattern: 'stone', scaleCm: 60, surfaceLengthCm: 120, surfaceWidthCm: 60, roughness: 0.48, metalness: 0 },
+    porcelainIvory: { color: '#e7e2d9', colorAlt: '#b7aea2', pattern: 'tile', scaleCm: 60, surfaceLengthCm: 60, surfaceWidthCm: 60, roughness: 0.34, metalness: 0 },
+    terrazzoLight: { color: '#d8d2c6', colorAlt: '#7f776f', pattern: 'terrazzo', scaleCm: 80, surfaceLengthCm: 80, surfaceWidthCm: 80, roughness: 0.56, metalness: 0 },
     microcement: { color: '#aaa59f', colorAlt: '#85817d', pattern: 'cement', scaleCm: 120, surfaceLengthCm: 160, surfaceWidthCm: 160, roughness: 0.88, metalness: 0 },
     linen: { color: '#c9c0b0', colorAlt: '#a99f91', pattern: 'fabric', scaleCm: 12, surfaceLengthCm: 48, surfaceWidthCm: 48, roughness: 0.96, metalness: 0 },
+  };
+  const WALL_FINISH_PRESETS = {
+    warmWhitePlaster: { color: '#f3eee7', colorAlt: '#d8d0c7', pattern: 'plaster', scaleCm: 90, roughness: 0.91, metalness: 0 },
+    blushPlaster: { color: '#d8a9a2', colorAlt: '#b97873', pattern: 'plaster', scaleCm: 90, roughness: 0.93, metalness: 0 },
+    sagePlaster: { color: '#9eae9d', colorAlt: '#718776', pattern: 'plaster', scaleCm: 90, roughness: 0.92, metalness: 0 },
+    bathroomTile: { color: '#e9e4dc', colorAlt: '#b8afa4', pattern: 'tile', scaleCm: 30, surfaceLengthCm: 60, surfaceWidthCm: 30, roughness: 0.34, metalness: 0 },
+    woodSlats: { color: '#946a4b', colorAlt: '#4f3528', pattern: 'slats', scaleCm: 10, surfaceLengthCm: 10, surfaceWidthCm: 280, roughness: 0.62, metalness: 0 },
+  };
+  const HOME_TEMPLATES = {
+    modernTwoBedroom: { width: 1120, depth: 800, roomCount: 6 },
   };
   const ROOM_TEMPLATES = {
     living: {
@@ -51,13 +64,17 @@
       openings: [
         { type: 'window', wallIndex: 0, ratio: 0.34, width: 150, height: 130, sillHeight: 82 },
         { type: 'window', wallIndex: 1, ratio: 0.54, width: 130, height: 125, sillHeight: 85 },
-        { type: 'door', wallIndex: 2, ratio: 0.82, width: 90, height: 210 },
+        { type: 'door', wallIndex: 2, ratio: 0.82, width: 90, height: 210, openAngle: 8 },
       ],
       furnitures: [
-        { type: 'sofa', x: 120, y: 250, rotation: -2.08, materialId: 'linen' },
+        { type: 'rug', x: 282, y: 205, w: 220, d: 150, h: 2, rotation: -0.08, materialId: 'linen' },
+        { type: 'sofa', x: 155, y: 250, rotation: -2.08, materialId: 'linen' },
+        { type: 'armchair', x: 350, y: 290, rotation: -0.56 },
         { type: 'cabinet', x: 440, y: 65, w: 160, d: 42, h: 55, materialId: 'walnut' },
         { type: 'tv', x: 440, y: 65, elevation: 55 },
-        { type: 'table', x: 280, y: 195, w: 110, d: 60, h: 42, rotation: -0.24, materialId: 'oakWarm' },
+        { type: 'table', x: 280, y: 195, w: 90, d: 90, h: 38, rotation: -0.24, materialId: 'oakWarm' },
+        { type: 'lamp', x: 70, y: 325, w: 24, d: 24, h: 155 },
+        { type: 'artwork', wallIndex: 0, wallRatio: 0.58, wallInset: 5, w: 105, d: 5, h: 72, elevation: 118 },
         { type: 'plant', x: 470, y: 325 },
       ],
     },
@@ -97,10 +114,41 @@
         { type: 'plant', x: 48, y: 245 },
       ],
     },
+    kitchen: {
+      width: 420, depth: 320, floorMaterialId: 'travertine',
+      openings: [
+        { type: 'window', wallIndex: 0, ratio: 0.5, width: 140, height: 115, sillHeight: 95 },
+        { type: 'door', wallIndex: 1, ratio: 0.76, width: 88, height: 210 },
+      ],
+      furnitures: [
+        { type: 'cabinet', x: 90, y: 270, w: 110, d: 55, h: 90, materialId: 'walnut' },
+        { type: 'stove', x: 190, y: 270 },
+        { type: 'sink', x: 285, y: 270 },
+        { type: 'fridge', x: 370, y: 70 },
+        { type: 'table', x: 225, y: 135, w: 125, d: 78, h: 75, materialId: 'oakWarm' },
+      ],
+    },
+    bathroom: {
+      width: 300, depth: 260, floorMaterialId: 'microcement',
+      openings: [
+        { type: 'window', wallIndex: 0, ratio: 0.5, width: 90, height: 70, sillHeight: 155 },
+        { type: 'door', wallIndex: 1, ratio: 0.72, width: 82, height: 210 },
+      ],
+      furnitures: [
+        { type: 'sink', x: 75, y: 72 },
+        { type: 'toilet', x: 75, y: 185 },
+        { type: 'bathtub', x: 210, y: 175 },
+        { type: 'washer', x: 225, y: 60 },
+      ],
+    },
   };
 
   function normalizeMaterialId(value) {
     return Object.hasOwn(MATERIAL_PRESETS, value) ? value : null;
+  }
+
+  function normalizeWallFinishId(value) {
+    return Object.hasOwn(WALL_FINISH_PRESETS, value) ? value : null;
   }
 
   function getMaterialRepeat(materialId, widthM, depthM) {
@@ -118,6 +166,13 @@
 
   function getDefaultFloorMaterialId(floorFinish) {
     return { wood: 'oakLight', tile: 'travertine', concrete: 'microcement' }[floorFinish] || 'oakLight';
+  }
+
+  function getFloorFinishForMaterialId(materialId) {
+    const pattern = MATERIAL_PRESETS[materialId]?.pattern;
+    if (pattern === 'wood') return 'wood';
+    if (pattern === 'cement') return 'concrete';
+    return 'tile';
   }
 
   function computeGroundingTranslation(localMinY) {
@@ -141,6 +196,9 @@
   }
   const FURNITURE_DEFAULTS = {
     sofa: { w: 180, d: 85, h: 80 },
+    armchair: { w: 76, d: 82, h: 84 },
+    rug: { w: 240, d: 170, h: 2 },
+    artwork: { w: 100, d: 5, h: 70 },
     bed: { w: 160, d: 200, h: 50 },
     table: { w: 120, d: 80, h: 75 },
     wardrobe: { w: 180, d: 60, h: 200 },
@@ -249,7 +307,29 @@
     }];
     const furnitures = template.furnitures.map(item => {
       const normalized = normalizeFurniture(item);
-      return { ...normalized, id: genId(), levelId, x: originX + normalized.x, y: originY + normalized.y };
+      let wallMounted = false;
+      if (Number.isInteger(item.wallIndex)) {
+        const wall = walls[Math.max(0, Math.min(walls.length - 1, item.wallIndex))];
+        const dx = wall.x2 - wall.x1;
+        const dy = wall.y2 - wall.y1;
+        const length = Math.max(0.001, Math.hypot(dx, dy));
+        const ratio = Math.max(0.05, Math.min(0.95, finiteNumber(item.wallRatio, 0.5)));
+        const inset = Math.max(0, finiteNumber(item.wallInset, 3));
+        normalized.x = wall.x1 + dx * ratio - dy / length * inset;
+        normalized.y = wall.y1 + dy * ratio + dx / length * inset;
+        normalized.rotation = Math.atan2(dy, dx);
+        normalized.wallId = wall.id;
+        wallMounted = true;
+      }
+      const furniture = {
+        ...normalized,
+        id: genId(),
+        levelId,
+        x: wallMounted ? normalized.x : originX + normalized.x,
+        y: wallMounted ? normalized.y : originY + normalized.y,
+      };
+      furniture.roomId = findFurnitureRoomId(rooms, furniture);
+      return furniture;
     });
     const doors = [];
     const windows = [];
@@ -263,10 +343,129 @@
         width: finiteNumber(opening.width, opening.type === 'door' ? 90 : 120),
         height: finiteNumber(opening.height, opening.type === 'door' ? 210 : 120),
       };
-      if (opening.type === 'door') doors.push({ ...item, openAngle: 90, swing: 1 });
+      if (opening.type === 'door') doors.push({ ...item, openAngle: finiteNumber(opening.openAngle, 90), swing: 1 });
       else windows.push({ ...item, sillHeight: finiteNumber(opening.sillHeight, 90) });
     }
     return { walls, rooms, furnitures, doors, windows, nextId };
+  }
+
+  function createHomeTemplate(templateId, options) {
+    const template = HOME_TEMPLATES[templateId];
+    if (!template) throw new Error('Unknown home template: ' + templateId);
+    const levelId = String(options?.levelId || DEFAULT_LEVEL.id);
+    const originX = finiteNumber(options?.originX, 0);
+    const originY = finiteNumber(options?.originY, 0);
+    const height = Math.max(100, finiteNumber(options?.height, DEFAULT_LEVEL.height));
+    const thickness = Math.max(1, finiteNumber(options?.thickness, 20));
+    let nextId = Math.max(1, Math.floor(finiteNumber(options?.startId, 1)));
+    const genId = () => 'obj_' + nextId++;
+    const atX = value => originX + value;
+    const atY = value => originY + value;
+
+    const wallByKey = new Map();
+    const walls = [];
+    const addWall = (key, x1, y1, x2, y2, wallFinishId = 'warmWhitePlaster') => {
+      const wall = { id: genId(), levelId, x1: atX(x1), y1: atY(y1), x2: atX(x2), y2: atY(y2), thickness, height, materialId: null, wallFinishId };
+      walls.push(wall);
+      wallByKey.set(key, wall);
+      return wall;
+    };
+    addWall('north', 0, 0, 1120, 0);
+    addWall('east', 1120, 0, 1120, 800);
+    addWall('south', 1120, 800, 0, 800);
+    addWall('west', 0, 800, 0, 0);
+    addWall('livingHall', 620, 0, 620, 800, 'blushPlaster');
+    addWall('hallBedrooms', 760, 0, 760, 800);
+    addWall('livingKitchen', 0, 480, 620, 480, 'sagePlaster');
+    addWall('bedrooms', 760, 330, 1120, 330);
+    addWall('bedBath', 760, 620, 1120, 620, 'bathroomTile');
+
+    const roomByKey = new Map();
+    const rooms = [];
+    const addRoom = (key, x, y, w, d, materialId) => {
+      const room = { id: genId(), levelId, templateId: key, homeTemplateId: templateId, x: atX(x), y: atY(y), w, d, materialId };
+      rooms.push(room);
+      roomByKey.set(key, room);
+      return room;
+    };
+    addRoom('living', 310, 240, 620, 480, 'oakLight');
+    addRoom('kitchen', 310, 640, 620, 320, 'travertine');
+    addRoom('hallway', 690, 400, 140, 800, 'oakLight');
+    addRoom('bedroomPrimary', 940, 165, 360, 330, 'oakWarm');
+    addRoom('bedroomSecondary', 940, 475, 360, 290, 'oakLight');
+    addRoom('bathroom', 940, 710, 360, 180, 'microcement');
+
+    const doors = [];
+    const addDoor = (wallKey, x, y, width, fromKey, toKey, openAngle = 72) => {
+      const wall = wallByKey.get(wallKey);
+      doors.push({
+        id: genId(), levelId, wallId: wall.id, x: atX(x), y: atY(y), width, height: 210, openAngle, swing: 1,
+        fromRoomId: fromKey ? roomByKey.get(fromKey).id : null,
+        toRoomId: toKey ? roomByKey.get(toKey).id : null,
+      });
+    };
+    addDoor('south', 690, 800, 96, null, 'hallway', 8);
+    addDoor('livingHall', 620, 220, 92, 'living', 'hallway');
+    addDoor('livingHall', 620, 640, 92, 'kitchen', 'hallway');
+    addDoor('hallBedrooms', 760, 180, 88, 'hallway', 'bedroomPrimary');
+    addDoor('hallBedrooms', 760, 470, 88, 'hallway', 'bedroomSecondary');
+    addDoor('hallBedrooms', 760, 700, 82, 'hallway', 'bathroom');
+    addDoor('livingKitchen', 310, 480, 140, 'living', 'kitchen', 0);
+
+    const windows = [];
+    const addWindow = (wallKey, x, y, width, heightValue = 125, sillHeight = 85) => {
+      const wall = wallByKey.get(wallKey);
+      windows.push({ id: genId(), levelId, wallId: wall.id, x: atX(x), y: atY(y), width, height: heightValue, sillHeight });
+    };
+    addWindow('north', 210, 0, 180, 130, 82);
+    addWindow('north', 940, 0, 145, 120, 88);
+    addWindow('west', 0, 240, 150, 125, 85);
+    addWindow('west', 0, 650, 135, 115, 95);
+    addWindow('east', 1120, 175, 130, 120, 88);
+    addWindow('east', 1120, 475, 120, 115, 92);
+    addWindow('east', 1120, 710, 80, 65, 160);
+
+    const furnitures = [];
+    const addFurniture = (type, x, y, patch = {}) => {
+      const absoluteX = atX(x);
+      const absoluteY = atY(y);
+      const furniture = {
+        ...normalizeFurniture({ type, x, y, ...patch }), id: genId(), levelId, x: absoluteX, y: absoluteY,
+        homeTemplateId: templateId,
+      };
+      furniture.roomId = patch.roomId || findFurnitureRoomId(rooms, furniture);
+      furnitures.push(furniture);
+    };
+    addFurniture('rug', 310, 260, { w: 250, d: 165, h: 2, materialId: 'linen' });
+    addFurniture('sofa', 155, 350, { rotation: -2.08, materialId: 'linen' });
+    addFurniture('armchair', 450, 360, { rotation: -0.55 });
+    addFurniture('cabinet', 520, 70, { w: 160, d: 42, h: 55, materialId: 'walnut' });
+    addFurniture('tv', 520, 70, { elevation: 55 });
+    addFurniture('table', 310, 230, { w: 90, d: 90, h: 38, materialId: 'oakWarm' });
+    addFurniture('lamp', 50, 170, { w: 24, d: 24, h: 155 });
+    addFurniture('plant', 560, 410);
+    addFurniture('artwork', 375, 5, { wallId: wallByKey.get('north').id, wallIndex: 0, wallRatio: 0.335, wallInset: 5, rotation: 0, w: 105, d: 5, h: 72, elevation: 118 });
+
+    addFurniture('cabinet', 115, 745, { w: 110, d: 52, h: 90, materialId: 'walnut', clearanceGroup: 'kitchenRun' });
+    addFurniture('cabinet', 230, 745, { w: 110, d: 52, h: 90, materialId: 'walnut', clearanceGroup: 'kitchenRun' });
+    addFurniture('stove', 350, 745);
+    addFurniture('sink', 455, 745);
+    addFurniture('fridge', 560, 555);
+    addFurniture('table', 330, 625, { w: 145, d: 82, h: 75, materialId: 'oakWarm' });
+
+    addFurniture('bed', 940, 130, { w: 160, d: 200, materialId: 'linen' });
+    addFurniture('wardrobe', 940, 295, { w: 150, d: 55, h: 200, materialId: 'walnut' });
+    addFurniture('lamp', 805, 285);
+    addFurniture('bed', 940, 440, { w: 150, d: 190, materialId: 'linen' });
+    addFurniture('wardrobe', 940, 590, { w: 145, d: 55, h: 195, materialId: 'walnut' });
+    addFurniture('cabinet', 805, 560, { w: 55, d: 45, h: 55, materialId: 'oakWarm' });
+
+    addFurniture('sink', 800, 690);
+    addFurniture('bathtub', 942.5, 710, { w: 165, d: 78, h: 58 });
+    addFurniture('toilet', 1075, 700);
+    addFurniture('plant', 690, 100);
+
+    return { homeTemplateId: templateId, width: template.width, depth: template.depth, walls, rooms, furnitures, doors, windows, nextId };
   }
 
   function normalizeFurniture(item) {
@@ -279,6 +478,7 @@
       elevation: Math.max(0, finiteNumber(item.elevation, 0)),
       rotation: finiteNumber(item.rotation, 0),
       materialId: normalizeMaterialId(item.materialId),
+      styleId: Object.hasOwn(STYLE_PRESETS, item.styleId) ? item.styleId : null,
     };
   }
 
@@ -320,9 +520,15 @@
     const fallbackLevelId = levels[0].id;
     const activeLevelId = levelIds.has(input.activeLevelId) ? input.activeLevelId : fallbackLevelId;
     const withLevel = item => ({ ...item, levelId: levelIds.has(item.levelId) ? item.levelId : fallbackLevelId });
-    const walls = collection(input, 'walls').map(wall => withLevel({ thickness: 20, height: 280, ...wall, materialId: normalizeMaterialId(wall.materialId) }));
-    const wallLevels = new Map(walls.map(wall => [wall.id, wall.levelId]));
+    const rawWalls = collection(input, 'walls').map(wall => withLevel({ thickness: 20, height: 280, ...wall, materialId: normalizeMaterialId(wall.materialId), wallFinishId: normalizeWallFinishId(wall.wallFinishId) }));
+    const wallLevels = new Map(rawWalls.map(wall => [wall.id, wall.levelId]));
     const withOpeningLevel = item => ({ ...item, levelId: levelIds.has(item.levelId) ? item.levelId : (wallLevels.get(item.wallId) || fallbackLevelId) });
+    const rooms = collection(input, 'rooms').map(withLevel);
+    const walls = repairLegacyHomeTemplateWalls(rawWalls, rooms);
+    const furnitures = collection(input, 'furnitures').map(item => withLevel(normalizeFurniture(item)))
+      .map(item => repairLegacyHomeTemplateFurniture(item, rooms))
+      .map(item => repairLegacyWallMountedFurniture(item, rooms, walls))
+      .map(item => ({ ...item, roomId: findFurnitureRoomId(rooms, item) }));
     return {
       version: CURRENT_VERSION,
       levels,
@@ -337,8 +543,8 @@
       walls,
       doors: collection(input, 'doors').map(withOpeningLevel),
       windows: collection(input, 'windows').map(withOpeningLevel),
-      rooms: collection(input, 'rooms').map(withLevel),
-      furnitures: collection(input, 'furnitures').map(item => withLevel(normalizeFurniture(item))),
+      rooms,
+      furnitures,
       dimensions: collection(input, 'dimensions').map(withLevel),
       stairs: collection(input, 'stairs').map(stair => withLevel({
         width: 100, length: 300, stepCount: 16, rotation: 0, ...stair,
@@ -371,22 +577,64 @@
 
   function saveLocalDraft(storage, state) {
     try {
-      storage.setItem(LOCAL_DRAFT_KEY, JSON.stringify(serializeProject(state)));
+      const next = JSON.stringify(serializeProject(state));
+      const previous = storage.getItem(LOCAL_DRAFT_KEY);
+      if (previous === next) return true;
+      if (previous) {
+        let valid = false;
+        try { normalizeProject(JSON.parse(previous)); valid = true; } catch (_) { /* retain existing backup */ }
+        if (valid) storage.setItem(LOCAL_DRAFT_KEY + '-backup', previous);
+      }
+      storage.setItem(LOCAL_DRAFT_KEY, next);
       return true;
     } catch (_) {
       return false;
     }
   }
 
-  function loadLocalDraft(storage) {
-    try {
-      const json = storage.getItem(LOCAL_DRAFT_KEY);
-      if (!json) return null;
-      return normalizeProject(JSON.parse(json));
-    } catch (_) {
-      try { storage.removeItem(LOCAL_DRAFT_KEY); } catch (_) { /* storage unavailable */ }
-      return null;
+  function loadLocalDraft(storage, backupOnly = false) {
+    for (const key of backupOnly ? [LOCAL_DRAFT_KEY + '-backup'] : [LOCAL_DRAFT_KEY, LOCAL_DRAFT_KEY + '-backup']) {
+      try {
+        const json = storage.getItem(key);
+        if (json) return normalizeProject(JSON.parse(json));
+      } catch (_) { /* preserve unreadable data and try the recovery copy */ }
     }
+    return null;
+  }
+
+  // Move a wall and its shared joints as one edit; openings retain their relative position.
+  function updateWallGeometry(project, wallId, geometry) {
+    const wall = project.walls.find(item => item.id === wallId);
+    if (!wall) return false;
+    const next = { ...wall, ...geometry };
+    if (![next.x1, next.y1, next.x2, next.y2].every(Number.isFinite)) return false;
+    const moves = [1, 2].map(end => ({
+      x: wall['x' + end], y: wall['y' + end], nx: next['x' + end], ny: next['y' + end],
+    })).filter(point => point.x !== point.nx || point.y !== point.ny);
+    const changes = project.walls.filter(item => item.levelId === wall.levelId).map(item => {
+      const changed = { ...item };
+      for (const end of [1, 2]) {
+        const joint = moves.find(point => Math.hypot(item['x' + end] - point.x, item['y' + end] - point.y) < 0.01);
+        if (joint) { changed['x' + end] = joint.nx; changed['y' + end] = joint.ny; }
+      }
+      return { item, changed };
+    }).filter(({ item, changed }) => [1, 2].some(end => item['x' + end] !== changed['x' + end] || item['y' + end] !== changed['y' + end]));
+    const openings = [...(project.doors || []), ...(project.windows || [])];
+    if (changes.some(({ item, changed }) => {
+      const length = Math.hypot(changed.x2 - changed.x1, changed.y2 - changed.y1);
+      return length < 10 || openings.some(opening => opening.wallId === item.id && opening.width > length);
+    })) return false;
+    for (const { item, changed } of changes) {
+      const oldLength = Math.hypot(item.x2 - item.x1, item.y2 - item.y1) || 1;
+      const length = Math.hypot(changed.x2 - changed.x1, changed.y2 - changed.y1);
+      for (const opening of openings.filter(entry => entry.wallId === item.id)) {
+        const offset = getOpeningOffset(opening, item) / oldLength * length;
+        Object.assign(opening, placeOpeningOnWall(opening, changed, offset));
+        opening.angle = Math.atan2(changed.y2 - changed.y1, changed.x2 - changed.x1);
+      }
+      Object.assign(item, changed);
+    }
+    return true;
   }
 
   function getNextObjectId(project) {
@@ -420,7 +668,11 @@
       const clones = normalized[key].filter(item => item.levelId === sourceLevelId).map(item => {
         const id = 'obj_' + nextId++;
         idMap.set(item.id, id);
-        return { ...item, id, levelId };
+        return {
+          ...item, id, levelId,
+          ...(item.wallId ? { wallId: idMap.get(item.wallId) || item.wallId } : {}),
+          ...(item.roomId ? { roomId: idMap.get(item.roomId) || item.roomId } : {}),
+        };
       });
       next[key].push(...clones);
     };
@@ -428,6 +680,8 @@
     for (const key of ['doors', 'windows']) {
       const clones = normalized[key].filter(item => item.levelId === sourceLevelId).map(item => ({
         ...item, id: 'obj_' + nextId++, levelId, wallId: idMap.get(item.wallId) || item.wallId,
+        ...(item.fromRoomId ? { fromRoomId: idMap.get(item.fromRoomId) || item.fromRoomId } : {}),
+        ...(item.toRoomId ? { toRoomId: idMap.get(item.toRoomId) || item.toRoomId } : {}),
       }));
       next[key].push(...clones);
     }
@@ -524,8 +778,269 @@
     return faces;
   }
 
+  function getAdjacentRoomOrigin(walls, levelId) {
+    const activeWalls = (Array.isArray(walls) ? walls : []).filter(wall => !levelId || wall.levelId === levelId);
+    if (!activeWalls.length) return { originX: 0, originY: 0 };
+    return {
+      originX: Math.max(...activeWalls.flatMap(wall => [finiteNumber(wall.x1, 0), finiteNumber(wall.x2, 0)])),
+      originY: Math.min(...activeWalls.flatMap(wall => [finiteNumber(wall.y1, 0), finiteNumber(wall.y2, 0)])),
+    };
+  }
+
+  function mergeRoomTemplateWalls(existingWalls, created) {
+    const epsilon = 0.000001;
+    const existing = Array.isArray(existingWalls) ? existingWalls : [];
+    const result = {
+      ...created,
+      walls: [],
+      doors: (created.doors || []).map(item => ({ ...item })),
+      windows: (created.windows || []).map(item => ({ ...item })),
+      furnitures: (created.furnitures || []).map(item => ({ ...item })),
+    };
+    let nextId = Math.max(1, Math.floor(finiteNumber(created.nextId, 1)));
+    const refs = [...result.doors, ...result.windows, ...result.furnitures];
+
+    for (const candidate of created.walls || []) {
+      const dx = candidate.x2 - candidate.x1;
+      const dy = candidate.y2 - candidate.y1;
+      const lengthSquared = dx * dx + dy * dy;
+      if (lengthSquared <= epsilon) continue;
+      const length = Math.sqrt(lengthSquared);
+      const coverages = [];
+      for (const wall of existing) {
+        if (wall.levelId !== candidate.levelId) continue;
+        const wx = wall.x2 - wall.x1;
+        const wy = wall.y2 - wall.y1;
+        const wallLength = Math.hypot(wx, wy);
+        if (wallLength <= epsilon || Math.abs(dx * wy - dy * wx) > epsilon * length * wallLength) continue;
+        const offsetCross = Math.abs((wall.x1 - candidate.x1) * dy - (wall.y1 - candidate.y1) * dx);
+        if (offsetCross > epsilon * length) continue;
+        const start = ((wall.x1 - candidate.x1) * dx + (wall.y1 - candidate.y1) * dy) / lengthSquared;
+        const end = ((wall.x2 - candidate.x1) * dx + (wall.y2 - candidate.y1) * dy) / lengthSquared;
+        const from = Math.max(0, Math.min(start, end));
+        const to = Math.min(1, Math.max(start, end));
+        if (to - from > epsilon) coverages.push({ from, to, wall });
+      }
+      if (!coverages.length) { result.walls.push({ ...candidate }); continue; }
+
+      const sorted = coverages.slice().sort((a, b) => a.from - b.from);
+      const merged = [];
+      for (const coverage of sorted) {
+        const last = merged.at(-1);
+        if (last && coverage.from <= last.to + epsilon) last.to = Math.max(last.to, coverage.to);
+        else merged.push({ from: coverage.from, to: coverage.to });
+      }
+      const gaps = [];
+      let cursor = 0;
+      for (const coverage of merged) {
+        if (coverage.from > cursor + epsilon) gaps.push({ from: cursor, to: coverage.from });
+        cursor = Math.max(cursor, coverage.to);
+      }
+      if (cursor < 1 - epsilon) gaps.push({ from: cursor, to: 1 });
+
+      const parts = gaps.map((gap, index) => ({
+        ...candidate,
+        id: index === 0 ? candidate.id : 'obj_' + nextId++,
+        x1: candidate.x1 + dx * gap.from,
+        y1: candidate.y1 + dy * gap.from,
+        x2: candidate.x1 + dx * gap.to,
+        y2: candidate.y1 + dy * gap.to,
+        _from: gap.from,
+        _to: gap.to,
+      }));
+      result.walls.push(...parts.map(({ _from, _to, ...wall }) => wall));
+
+      for (const item of refs.filter(ref => ref.wallId === candidate.id)) {
+        const t = ((finiteNumber(item.x, candidate.x1) - candidate.x1) * dx + (finiteNumber(item.y, candidate.y1) - candidate.y1) * dy) / lengthSquared;
+        const coverage = coverages.find(entry => t >= entry.from - epsilon && t <= entry.to + epsilon);
+        if (coverage) item.wallId = coverage.wall.id;
+        else {
+          const part = parts.find(entry => t >= entry._from - epsilon && t <= entry._to + epsilon);
+          if (part) item.wallId = part.id;
+        }
+      }
+    }
+    result.nextId = nextId;
+    return result;
+  }
+
+  function roomBoundarySegment(room, wallIndex) {
+    const minX = finiteNumber(room.x, 0) - Math.max(0, finiteNumber(room.w, 0)) / 2;
+    const maxX = finiteNumber(room.x, 0) + Math.max(0, finiteNumber(room.w, 0)) / 2;
+    const minY = finiteNumber(room.y, 0) - Math.max(0, finiteNumber(room.d, 0)) / 2;
+    const maxY = finiteNumber(room.y, 0) + Math.max(0, finiteNumber(room.d, 0)) / 2;
+    return [
+      { x1: minX, y1: minY, x2: maxX, y2: minY },
+      { x1: maxX, y1: minY, x2: maxX, y2: maxY },
+      { x1: maxX, y1: maxY, x2: minX, y2: maxY },
+      { x1: minX, y1: maxY, x2: minX, y2: minY },
+    ][Math.max(0, Math.min(3, wallIndex))];
+  }
+
+  function sameSegment(a, b, epsilon = 0.01) {
+    const sameDirection = Math.hypot(a.x1 - b.x1, a.y1 - b.y1) <= epsilon && Math.hypot(a.x2 - b.x2, a.y2 - b.y2) <= epsilon;
+    const reverseDirection = Math.hypot(a.x1 - b.x2, a.y1 - b.y2) <= epsilon && Math.hypot(a.x2 - b.x1, a.y2 - b.y1) <= epsilon;
+    return sameDirection || reverseDirection;
+  }
+
+  function wallMountedPose(segment, item) {
+    const dx = segment.x2 - segment.x1;
+    const dy = segment.y2 - segment.y1;
+    const length = Math.max(0.001, Math.hypot(dx, dy));
+    const ratio = Math.max(0.05, Math.min(0.95, finiteNumber(item.wallRatio, 0.5)));
+    const inset = Math.max(0, finiteNumber(item.wallInset, 3));
+    return {
+      x: segment.x1 + dx * ratio - dy / length * inset,
+      y: segment.y1 + dy * ratio + dx / length * inset,
+      rotation: Math.atan2(dy, dx),
+    };
+  }
+
+  function getModernHomeOrigin(rooms, levelId) {
+    const homeRooms = rooms.filter(room => room.levelId === levelId && room.homeTemplateId === 'modernTwoBedroom');
+    if (homeRooms.length < HOME_TEMPLATES.modernTwoBedroom.roomCount) return null;
+    return {
+      x: Math.min(...homeRooms.map(room => finiteNumber(room.x, 0) - finiteNumber(room.w, 0) / 2)),
+      y: Math.min(...homeRooms.map(room => finiteNumber(room.y, 0) - finiteNumber(room.d, 0) / 2)),
+      rooms: homeRooms,
+    };
+  }
+
+  function repairLegacyHomeTemplateWalls(walls, rooms) {
+    return walls.map(wall => {
+      if (wall.wallFinishId) return wall;
+      const origin = getModernHomeOrigin(rooms, wall.levelId);
+      if (!origin) return wall;
+      const segment = (x1, y1, x2, y2) => ({ x1: origin.x + x1, y1: origin.y + y1, x2: origin.x + x2, y2: origin.y + y2 });
+      const finishes = [
+        ['blushPlaster', segment(620, 0, 620, 800)],
+        ['sagePlaster', segment(0, 480, 620, 480)],
+        ['bathroomTile', segment(760, 620, 1120, 620)],
+      ];
+      const isHomeWall = [
+        segment(0, 0, 1120, 0), segment(1120, 0, 1120, 800), segment(1120, 800, 0, 800), segment(0, 800, 0, 0),
+        segment(620, 0, 620, 800), segment(760, 0, 760, 800), segment(0, 480, 620, 480), segment(760, 330, 1120, 330), segment(760, 620, 1120, 620),
+      ].some(expected => sameSegment(wall, expected));
+      if (!isHomeWall) return wall;
+      const matched = finishes.find(([, expected]) => sameSegment(wall, expected));
+      return { ...wall, wallFinishId: matched?.[0] || 'warmWhitePlaster' };
+    });
+  }
+
+  function repairLegacyHomeTemplateFurniture(item, rooms) {
+    if (item.homeTemplateId !== 'modernTwoBedroom') return item;
+    const origin = getModernHomeOrigin(rooms, item.levelId);
+    if (!origin) return item;
+    const relativeX = finiteNumber(item.x, 0) - origin.x;
+    const relativeY = finiteNumber(item.y, 0) - origin.y;
+    const moves = [
+      { type: 'armchair', x: 410, y: 335, toX: 450, toY: 360 },
+      { type: 'table', x: 310, y: 245, w: 90, toX: 310, toY: 230 },
+      { type: 'lamp', x: 70, y: 415, toX: 50, toY: 170 },
+      { type: 'bed', x: 940, y: 180, toX: 940, toY: 130 },
+      { type: 'wardrobe', x: 1040, y: 55, toX: 940, toY: 295 },
+      { type: 'bed', x: 940, y: 475, toX: 940, toY: 440 },
+      { type: 'wardrobe', x: 1040, y: 365, toX: 940, toY: 590 },
+      { type: 'desk', x: 820, y: 565, toX: 805, toY: 560, patch: { type: 'cabinet', w: 55, d: 45, h: 55, materialId: 'oakWarm' } },
+      { type: 'bathtub', x: 935, y: 710, toX: 942.5, toY: 710 },
+      { type: 'toilet', x: 1060, y: 700, toX: 1075, toY: 700 },
+    ];
+    const move = moves.find(candidate => candidate.type === item.type
+      && Math.abs(relativeX - candidate.x) < 0.6 && Math.abs(relativeY - candidate.y) < 0.6
+      && (candidate.w == null || Math.abs(finiteNumber(item.w, 0) - candidate.w) < 0.6));
+    const repaired = move
+      ? { ...item, ...(move.patch || {}), x: origin.x + move.toX, y: origin.y + move.toY }
+      : { ...item };
+    const room = origin.rooms.find(candidate => repaired.x >= candidate.x - candidate.w / 2 && repaired.x <= candidate.x + candidate.w / 2
+      && repaired.y >= candidate.y - candidate.d / 2 && repaired.y <= candidate.y + candidate.d / 2);
+    return { ...repaired, roomId: room?.id || repaired.roomId || null };
+  }
+
+  function repairLegacyWallMountedFurniture(item, rooms, walls) {
+    if (!Number.isInteger(item.wallIndex)) return item;
+    if (item.type === 'artwork' && item.wallIndex === 1 && Math.abs(finiteNumber(item.wallRatio, 0) - 0.18) < 0.001) {
+      for (const room of rooms.filter(candidate => candidate.levelId === item.levelId && candidate.templateId === 'living')) {
+        const oldSegment = roomBoundarySegment(room, 1);
+        const oldPose = wallMountedPose(oldSegment, item);
+        const originX = finiteNumber(room.x, 0) - finiteNumber(room.w, 0) / 2;
+        const originY = finiteNumber(room.y, 0) - finiteNumber(room.d, 0) / 2;
+        const oldDistance = Math.min(
+          Math.hypot(finiteNumber(item.x, 0) - oldPose.x, finiteNumber(item.y, 0) - oldPose.y),
+          Math.hypot(finiteNumber(item.x, 0) - oldPose.x - originX, finiteNumber(item.y, 0) - oldPose.y - originY),
+        );
+        if (oldDistance > 1) continue;
+        const visibleSegment = roomBoundarySegment(room, 0);
+        const visibleWall = walls.find(candidate => candidate.levelId === room.levelId && sameSegment(candidate, visibleSegment));
+        if (!visibleWall) continue;
+        const visibleAnchor = { ...item, wallIndex: 0, wallRatio: 0.58, wallInset: 5 };
+        return { ...visibleAnchor, ...wallMountedPose(visibleSegment, visibleAnchor), wallId: visibleWall.id };
+      }
+    }
+    if (item.wallId && walls.some(wall => wall.id === item.wallId)) return item;
+    let best = null;
+    for (const room of rooms) {
+      if (room.levelId !== item.levelId || !room.templateId) continue;
+      const segment = roomBoundarySegment(room, item.wallIndex);
+      const wall = walls.find(candidate => candidate.levelId === room.levelId && sameSegment(candidate, segment));
+      if (!wall) continue;
+      const pose = wallMountedPose(segment, item);
+      const originX = finiteNumber(room.x, 0) - finiteNumber(room.w, 0) / 2;
+      const originY = finiteNumber(room.y, 0) - finiteNumber(room.d, 0) / 2;
+      const correctDistance = Math.hypot(finiteNumber(item.x, 0) - pose.x, finiteNumber(item.y, 0) - pose.y);
+      const legacyDistance = Math.hypot(finiteNumber(item.x, 0) - (pose.x + originX), finiteNumber(item.y, 0) - (pose.y + originY));
+      const distance = Math.min(correctDistance, legacyDistance);
+      if (!best || distance < best.distance) best = { distance, wall, pose };
+    }
+    if (!best || best.distance > 1) return item;
+    return { ...item, ...best.pose, wallId: best.wall.id };
+  }
+
+  function pointOnSegment(point, start, end, epsilon = 0.000001) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const cross = (point.x - start.x) * dy - (point.y - start.y) * dx;
+    if (Math.abs(cross) > epsilon * Math.max(1, Math.hypot(dx, dy))) return false;
+    const dot = (point.x - start.x) * dx + (point.y - start.y) * dy;
+    return dot >= -epsilon && dot <= dx * dx + dy * dy + epsilon;
+  }
+
+  function polygonContainsPoint(polygon, point) {
+    let inside = false;
+    for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+      const a = polygon[previous];
+      const b = polygon[index];
+      if (pointOnSegment(point, a, b)) return true;
+      const crosses = (a.y > point.y) !== (b.y > point.y)
+        && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x;
+      if (crosses) inside = !inside;
+    }
+    return inside;
+  }
+
+  function isFootprintInsideFloor(walls, item) {
+    const polygons = computeFloorPolygons(walls);
+    if (!polygons.length) return false;
+    const width = finiteNumber(item?.w, item?.width);
+    const depth = finiteNumber(item?.d, item?.length);
+    const corners = rotatedBoxCorners(item, width, depth);
+    return polygons.some(polygon => corners.every(point => polygonContainsPoint(polygon, point)));
+  }
+
+  function findInvalidStairIds(walls, stairs) {
+    const wallList = Array.isArray(walls) ? walls : [];
+    return (Array.isArray(stairs) ? stairs : []).filter(stair => {
+      const levelWalls = wallList.filter(wall => wall.levelId === stair.levelId);
+      return !isFootprintInsideFloor(levelWalls, stair);
+    }).map(stair => stair.id).filter(Boolean);
+  }
+
   function shouldShowRoof({ buildingViewMode, cutawayMode, walkMode }) {
     return buildingViewMode === 'all' && !cutawayMode && !walkMode;
+  }
+
+  function shouldShowSite({ buildingViewMode, cutawayMode, walkMode, cameraPreset }) {
+    if (walkMode) return false;
+    return buildingViewMode === 'all' || (!cutawayMode && cameraPreset === 'exterior');
   }
 
   function computeFloorArea(walls) {
@@ -546,6 +1061,78 @@
       w: Number((Math.abs(w * Math.cos(angle)) + Math.abs(d * Math.sin(angle))).toFixed(6)),
       d: Number((Math.abs(w * Math.sin(angle)) + Math.abs(d * Math.cos(angle))).toFixed(6)),
     };
+  }
+
+  function findFurnitureRoomId(rooms, item) {
+    const width = finiteNumber(item?.w, item?.width);
+    const depth = finiteNumber(item?.d, item?.length ?? item?.h);
+    const points = [
+      { x: finiteNumber(item?.x, 0), y: finiteNumber(item?.y, 0) },
+      ...rotatedBoxCorners(item, width, depth),
+    ];
+    const matches = (Array.isArray(rooms) ? rooms : []).filter(room => {
+      if (!room?.id || (room.levelId && item?.levelId && room.levelId !== item.levelId)) return false;
+      const halfWidth = Math.max(0, finiteNumber(room.w, 0)) / 2;
+      const halfDepth = Math.max(0, finiteNumber(room.d, 0)) / 2;
+      if (halfWidth <= 0 || halfDepth <= 0) return false;
+      const bounds = {
+        left: finiteNumber(room.x, 0) - halfWidth,
+        right: finiteNumber(room.x, 0) + halfWidth,
+        top: finiteNumber(room.y, 0) - halfDepth,
+        bottom: finiteNumber(room.y, 0) + halfDepth,
+      };
+      return points.every(point => selectionRectContainsPoint(bounds, point));
+    }).sort((left, right) => finiteNumber(left.w, 0) * finiteNumber(left.d, 0) - finiteNumber(right.w, 0) * finiteNumber(right.d, 0));
+    return matches[0]?.id || null;
+  }
+
+  function findFurnitureSpaceId(rooms, walls, item) {
+    const roomId = findFurnitureRoomId(rooms, item);
+    if (roomId) return roomId;
+    const levelWalls = (Array.isArray(walls) ? walls : []).filter(wall => !item?.levelId || wall.levelId === item.levelId);
+    const polygons = computeFloorPolygons(levelWalls);
+    const width = finiteNumber(item?.w, item?.width);
+    const depth = finiteNumber(item?.d, item?.length ?? item?.h);
+    const points = [{ x: finiteNumber(item?.x, 0), y: finiteNumber(item?.y, 0) }, ...rotatedBoxCorners(item, width, depth)];
+    const polygonIndex = polygons.findIndex(polygon => points.every(point => polygonContainsPoint(polygon, point)));
+    return polygonIndex < 0 ? null : `floor:${item?.levelId || 'level'}:${polygonIndex}`;
+  }
+
+  function findFurnitureClearanceIssues(furnitures, minimumClearance = 25) {
+    const clearance = Math.max(0, finiteNumber(minimumClearance, 25));
+    const ignoredTypes = new Set(['rug', 'artwork']);
+    const items = Array.isArray(furnitures) ? furnitures : [];
+    const issues = [];
+    for (let leftIndex = 0; leftIndex < items.length; leftIndex += 1) {
+      const left = items[leftIndex];
+      if (!left || ignoredTypes.has(left.type)) continue;
+      for (let rightIndex = leftIndex + 1; rightIndex < items.length; rightIndex += 1) {
+        const right = items[rightIndex];
+        if (!right || ignoredTypes.has(right.type)) continue;
+        if (left.levelId && right.levelId && left.levelId !== right.levelId) continue;
+        const leftBottom = Math.max(0, finiteNumber(left.elevation, 0));
+        const rightBottom = Math.max(0, finiteNumber(right.elevation, 0));
+        const leftTop = leftBottom + Math.max(0, finiteNumber(left.h, 0));
+        const rightTop = rightBottom + Math.max(0, finiteNumber(right.h, 0));
+        if (leftTop <= rightBottom || rightTop <= leftBottom) continue;
+        const leftFootprint = getRotatedFootprint(left.w, left.d || left.h, left.rotation);
+        const rightFootprint = getRotatedFootprint(right.w, right.d || right.h, right.rotation);
+        const gapX = Math.abs(finiteNumber(left.x, 0) - finiteNumber(right.x, 0)) - (leftFootprint.w + rightFootprint.w) / 2;
+        const gapY = Math.abs(finiteNumber(left.y, 0) - finiteNumber(right.y, 0)) - (leftFootprint.d + rightFootprint.d) / 2;
+        const overlaps = gapX < 0 && gapY < 0;
+        const sameSpace = left.roomId && right.roomId && left.roomId === right.roomId;
+        const softExempt = left.clearanceExempt || right.clearanceExempt
+          || (left.clearanceGroup && left.clearanceGroup === right.clearanceGroup);
+        const lacksClearance = sameSpace && !softExempt && gapX < clearance && gapY < clearance;
+        if (overlaps || lacksClearance) {
+          issues.push({
+            leftId: left.id, rightId: right.id, leftType: left.type, rightType: right.type,
+            kind: overlaps ? 'overlap' : 'clearance', gapX: Number(gapX.toFixed(1)), gapY: Number(gapY.toFixed(1)),
+          });
+        }
+      }
+    }
+    return issues;
   }
 
   function getStairRiseLimit(walls, levelId, fallback = 280) {
@@ -833,6 +1420,7 @@
     const depth = Math.max(0, finiteNumber(item?.d, item?.length || 0));
     const walls = Array.isArray(options?.walls) ? options.walls : [];
     const objects = Array.isArray(options?.objects) ? options.objects : [];
+    const objectClearance = Math.max(0, finiteNumber(options?.objectClearance, 0));
 
     let nearestWall = null;
     for (const wall of walls) {
@@ -861,7 +1449,7 @@
       for (const other of objects) {
         const otherCenter = finiteNumber(other[axis], 0);
         const otherSize = Math.max(0, finiteNumber(axis === 'x' ? (other.w ?? other.width) : (other.d ?? other.length), 0));
-        for (const position of [otherCenter, otherCenter + (otherSize + size) / 2, otherCenter - (otherSize + size) / 2]) {
+        for (const position of [otherCenter, otherCenter + (otherSize + size) / 2 + objectClearance, otherCenter - (otherSize + size) / 2 - objectClearance]) {
           const distance = Math.abs(position - raw);
           if (distance <= threshold && (!best || distance < best.distance)) best = { position, distance, kind: 'object' };
         }
@@ -897,5 +1485,5 @@
     });
   }
 
-  return { CURRENT_VERSION, LOCAL_DRAFT_KEY, DEFAULT_LEVEL, DEFAULT_CEILING, DEFAULT_STYLE, DEFAULT_ARCHITECTURE_STYLE, DEFAULT_RENDER_MODE, RENDER_PRESETS, DEFAULT_LIGHTING_PRESET, LIGHTING_PRESETS, DEFAULT_CAMERA_PRESET, CAMERA_PRESETS, MATERIAL_PRESETS, ROOM_TEMPLATES, FURNITURE_DEFAULTS, STYLE_PRESETS, ARCHITECTURE_PRESETS, shouldShowRoof, normalizeCameraView, computeRenderExportSize, getMaterialRepeat, getDefaultFloorMaterialId, computeGroundingTranslation, computeShadowCameraExtent, computePracticalLightIntensity, applyMaterialBrush, createRoomTemplate, normalizeProject, serializeProject, saveLocalDraft, loadLocalDraft, getNextObjectId, getNextLevelId, getNextLevelElevation, duplicateLevel, computeFloorPolygons, computeFloorArea, getRotatedFootprint, getStairRiseLimit, getPreviousLevel, createHistory, computeWallSegments, computeCutawayWallIds, computeDoorPose, getOpeningOffset, placeOpeningOnWall, hitTestFurniture, getVisibleLevelIds, selectObjectsInRect, computeObjectSnap, filterFurnitureCatalog };
+  return { updateWallGeometry, CURRENT_VERSION, LOCAL_DRAFT_KEY, DEFAULT_LEVEL, DEFAULT_CEILING, DEFAULT_STYLE, DEFAULT_ARCHITECTURE_STYLE, DEFAULT_RENDER_MODE, RENDER_PRESETS, DEFAULT_LIGHTING_PRESET, LIGHTING_PRESETS, DEFAULT_CAMERA_PRESET, CAMERA_PRESETS, MATERIAL_PRESETS, WALL_FINISH_PRESETS, HOME_TEMPLATES, ROOM_TEMPLATES, FURNITURE_DEFAULTS, STYLE_PRESETS, ARCHITECTURE_PRESETS, shouldShowRoof, shouldShowSite, normalizeCameraView, computeRenderExportSize, getMaterialRepeat, getDefaultFloorMaterialId, getFloorFinishForMaterialId, computeGroundingTranslation, computeShadowCameraExtent, computePracticalLightIntensity, applyMaterialBrush, createRoomTemplate, createHomeTemplate, getAdjacentRoomOrigin, mergeRoomTemplateWalls, isFootprintInsideFloor, findInvalidStairIds, normalizeProject, serializeProject, saveLocalDraft, loadLocalDraft, getNextObjectId, getNextLevelId, getNextLevelElevation, duplicateLevel, computeFloorPolygons, computeFloorArea, getRotatedFootprint, findFurnitureRoomId, findFurnitureSpaceId, findFurnitureClearanceIssues, getStairRiseLimit, getPreviousLevel, createHistory, computeWallSegments, computeCutawayWallIds, computeDoorPose, getOpeningOffset, placeOpeningOnWall, hitTestFurniture, getVisibleLevelIds, selectObjectsInRect, computeObjectSnap, filterFurnitureCatalog };
 });

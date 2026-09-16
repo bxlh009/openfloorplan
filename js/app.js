@@ -7,12 +7,14 @@
 
   // Keyboard shortcuts
   window.addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT') return;
+    if (e.defaultPrevented || e.isComposing) return;
+    if (e.target && (e.target.isContentEditable || e.target.closest('input, textarea, select, [role="textbox"]'))) return;
     const ctrl = e.ctrlKey || e.metaKey;
     if (ctrl && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
     if (ctrl && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
     if (ctrl && e.key.toLowerCase() === 'c') { e.preventDefault(); copySelection(); return; }
     if (ctrl && e.key.toLowerCase() === 'v') { e.preventDefault(); pasteSelection(); return; }
+    if (ctrl || e.altKey) return;
     switch (e.key.toLowerCase()) {
       case 'v': document.querySelector('[data-tool="select"]').click(); break;
       case 'w': document.querySelector('[data-tool="wall"]').click(); break;
@@ -50,7 +52,12 @@
     requestRedraw();
   }
   rebuild3D();
-  document.getElementById('status-info').textContent = t(restoredDraft ? 'status.restored' : 'status.shortcuts');
+  let status = t(restoredDraft ? 'status.restored' : 'status.shortcuts');
+  if (restoredDraft) {
+    const invalidStairs = ProjectModel.findInvalidStairIds(State.walls, State.stairs).length;
+    if (invalidStairs) status += ' · ' + t('status.invalidStairs').replace('{count}', String(invalidStairs));
+  }
+  document.getElementById('status-info').textContent = status;
 })();
 
 function updateToolLabel() {

@@ -77,7 +77,7 @@ function _restore(json) {
   State.lightingPreset = data.lightingPreset || ProjectModel.DEFAULT_LIGHTING_PRESET;
   State.cameraPreset = data.cameraPreset || ProjectModel.DEFAULT_CAMERA_PRESET;
   State.savedCamera = data.savedCamera || null;
-  State.sunAngle = data.sunAngle || 60;
+  State.sunAngle = data.sunAngle ?? 60;
   State.activeObject = null;
   State.activeType = null;
   State.selectedObjects = [];
@@ -96,6 +96,9 @@ function beginHistory() { return _history.begin(); }
 function localStorageOrNull() {
   try { return window.localStorage; } catch (_) { return null; }
 }
+let _draftRevision = null;
+try { _draftRevision = localStorageOrNull()?.getItem(ProjectModel.LOCAL_DRAFT_KEY) ?? null; } catch (_) { /* unavailable */ }
+let _savedSnapshot = snapshot();
 function updateAutosaveBadge(saved) {
   const badge = document.querySelector('.autosave-badge');
   if (badge) {
@@ -114,7 +117,19 @@ function updateAutosaveBadge(saved) {
 }
 function persistLocalDraft() {
   const storage = localStorageOrNull();
+  try {
+    if (storage && storage.getItem(ProjectModel.LOCAL_DRAFT_KEY) !== _draftRevision) {
+      updateAutosaveBadge(false);
+      const badge = document.querySelector('.autosave-badge');
+      if (badge) { badge.textContent = t('status.saveConflict'); badge.title = t('status.saveConflict'); }
+      return false;
+    }
+  } catch (_) { updateAutosaveBadge(false); return false; }
   const saved = Boolean(storage && ProjectModel.saveLocalDraft(storage, State));
+  if (saved) {
+    _draftRevision = JSON.stringify(ProjectModel.serializeProject(State));
+    _savedSnapshot = snapshot();
+  }
   updateAutosaveBadge(saved);
   return saved;
 }
@@ -130,6 +145,7 @@ function restoreLocalDraft() {
   State.activeObject = null; State.activeType = null;
   State.selectedObjects = []; State.selectionBox = null;
   _history.clear();
+  _savedSnapshot = snapshot();
   updateAutosaveBadge(true);
   return true;
 }
@@ -219,7 +235,7 @@ window.deleteSelectedObjects = deleteSelectedObjects;
 // A page can be closed or reloaded immediately after an edit. Keep the latest
 // in-memory state as the final save, even when a browser ends the page before
 // the normal edit transaction finishes.
-window.addEventListener('pagehide', () => persistLocalDraft());
+window.addEventListener('pagehide', () => { if (snapshot() !== _savedSnapshot) persistLocalDraft(); });
 
 // ---- Copy/Paste ----
 let _clipboard = null;

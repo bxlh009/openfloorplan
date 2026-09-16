@@ -1,6 +1,7 @@
 // Tools - Sweet Home 3D style
 (function() {
   const canvas = document.getElementById('canvas-2d');
+  const FURNITURE_CLEARANCE_CM = 25;
 
   let isPanning = false;
   let panStart = null;
@@ -56,7 +57,7 @@
   function pendingFurniturePlacement(spec, x, y) {
     const rotation = normalizeAngle(State.pendingFurnitureRotation);
     const footprint = getFurnitureFootprint(spec, rotation);
-    const snapped = snapObject({ x, y, w: footprint.w, d: footprint.d });
+    const snapped = snapObject({ x, y, w: footprint.w, d: footprint.d }, null, FURNITURE_CLEARANCE_CM);
     return { ...snapped, rotation, footprint };
   }
 
@@ -113,7 +114,54 @@
     return null;
   }
 
-  function snapObject(item, excludeId) {
+  function validateFurniturePlacement(item, excludeId) {
+    const levelId = item.levelId || State.activeLevelId;
+    const candidate = {
+      ...item,
+      id: item.id || '__candidate__',
+      levelId,
+      roomId: ProjectModel.findFurnitureSpaceId(State.rooms, State.walls, { ...item, levelId }),
+    };
+    const footprint = getFurnitureFootprint(candidate);
+    const levelWalls = State.walls.filter(wall => wall.levelId === levelId);
+    const floorPolygons = ProjectModel.computeFloorPolygons(levelWalls);
+    if (floorPolygons.length && !ProjectModel.isFootprintInsideFloor(levelWalls, candidate)) {
+      return { valid: false, reason: 'floor', roomId: null };
+    }
+    for (const wall of levelWalls) {
+      const dist = distToSeg(candidate.x, candidate.y, wall.x1, wall.y1, wall.x2, wall.y2);
+      const dx = wall.x2 - wall.x1; const dy = wall.y2 - wall.y1; const length = Math.hypot(dx, dy) || 1;
+      const nx = -dy / length; const ny = dx / length;
+      const support = Math.abs(nx) * footprint.w / 2 + Math.abs(ny) * footprint.d / 2 + (wall.thickness || 20) / 2;
+      if (dist < support - 0.5) return { valid: false, reason: 'wall', roomId: null };
+    }
+    for (const stair of State.stairs.filter(other => other.levelId === levelId && other.id !== excludeId)) {
+      const stairFootprint = ProjectModel.getRotatedFootprint(stair.width, stair.length, stair.rotation);
+      if (Math.abs(candidate.x - stair.x) < (footprint.w + stairFootprint.w) / 2
+        && Math.abs(candidate.y - stair.y) < (footprint.d + stairFootprint.d) / 2) {
+        return { valid: false, reason: 'overlap', roomId: null };
+      }
+    }
+    const furniture = State.furnitures
+      .filter(other => other.levelId === levelId && other.id !== excludeId)
+      .map(other => ({ ...other, roomId: ProjectModel.findFurnitureSpaceId(State.rooms, State.walls, other) }));
+    const issue = ProjectModel.findFurnitureClearanceIssues([...furniture, candidate], FURNITURE_CLEARANCE_CM)
+      .find(entry => entry.leftId === candidate.id || entry.rightId === candidate.id);
+    if (issue) return { valid: false, reason: issue.kind, issue, roomId: null };
+    return {
+      valid: true,
+      roomId: ProjectModel.findFurnitureRoomId(State.rooms, candidate),
+      spaceId: candidate.roomId,
+    };
+  }
+
+  function showFurniturePlacementIssue(reason) {
+    const status = document.getElementById('status-info');
+    if (!status) return;
+    status.textContent = reason === 'floor' ? t('message.furnitureInside') : t('message.furnitureClearance');
+  }
+
+  function snapObject(item, excludeId, objectClearance = 0) {
     if (!State.snapEnabled) {
       State.snapGuides = [];
       return { x: item.x, y: item.y, kind: null, guides: [] };
@@ -123,7 +171,7 @@
       ...activeLevelItems(State.stairs).map(object => ({ ...object, ...ProjectModel.getRotatedFootprint(object.width, object.length, object.rotation) })),
     ].filter(object => object.id !== excludeId);
     const result = ProjectModel.computeObjectSnap(item, {
-      walls: activeLevelItems(State.walls), objects, gridSize: State.gridSize, threshold: 12,
+      walls: activeLevelItems(State.walls), objects, gridSize: State.gridSize, threshold: 12, objectClearance,
     });
     State.snapGuides = result.guides;
     return result;
@@ -173,12 +221,18 @@
     return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
   }
 
-  function findSnapPoint(wx, wy) {
+  function findSnapPoint(wx, wy, excludeId) {
+    if (!State.snapEnabled) return null;
+    let best = null;
+    let distance = 15 / State.zoom;
     for (const w of activeLevelItems(State.walls)) {
-      if (Math.hypot(wx - w.x1, wy - w.y1) < 15) return { x: w.x1, y: w.y1 };
-      if (Math.hypot(wx - w.x2, wy - w.y2) < 15) return { x: w.x2, y: w.y2 };
+      if (w.id === excludeId) continue;
+      for (const end of [1, 2]) {
+        const d = Math.hypot(wx - w['x' + end], wy - w['y' + end]);
+        if (d < distance) { distance = d; best = { x: w['x' + end], y: w['y' + end] }; }
+      }
     }
-    return null;
+    return best;
   }
 
   // --- Reset tool state (called on tool switch) ---
@@ -221,13 +275,15 @@
 
       const pick = pickAt(w.x, w.y);
       if (pick?.type === 'furniture') {
-        mutateProject(() => {
-          pick.obj.rotation = normalizeAngle((pick.obj.rotation || 0) + Math.PI / 2);
-        });
-        setSelection([{ id: pick.id, type: 'furniture' }]);
-        const status = document.getElementById('status-info');
-        if (status) status.textContent = t('message.furnitureRotated').replace('{angle}', String(Math.round(pick.obj.rotation * 180 / Math.PI)));
-        rebuild3D();
+        const rotation = normalizeAngle((pick.obj.rotation || 0) + Math.PI / 2);
+        const validation = validateFurniturePlacement({ ...pick.obj, rotation }, pick.obj.id);
+        if (validation.valid) {
+          mutateProject(() => { pick.obj.rotation = rotation; pick.obj.roomId = validation.roomId; });
+          setSelection([{ id: pick.id, type: 'furniture' }]);
+          const status = document.getElementById('status-info');
+          if (status) status.textContent = t('message.furnitureRotated').replace('{angle}', String(Math.round(pick.obj.rotation * 180 / Math.PI)));
+          rebuild3D();
+        } else showFurniturePlacementIssue(validation.reason);
       }
       return;
     }
@@ -249,13 +305,17 @@
         const placement = pendingFurniturePlacement(spec, w.x, w.y);
         const fx = placement.x;
         const fy = placement.y;
-        if (!furnitureOverlaps(fx, fy, placement.footprint.w, placement.footprint.d)) {
+        const candidate = {
+          type: State.pendingFurniture, levelId: State.activeLevelId,
+          x: fx, y: fy, w: spec.w, d: spec.d, h: spec.h, rotation: placement.rotation,
+        };
+        const validation = validateFurniturePlacement(candidate);
+        if (validation.valid) {
           let furnitureId;
           mutateProject(() => {
             furnitureId = genId();
             State.furnitures.push({
-              id: furnitureId, type: State.pendingFurniture, levelId: State.activeLevelId,
-              x: fx, y: fy, w: spec.w, d: spec.d, h: spec.h, rotation: placement.rotation,
+              id: furnitureId, ...candidate, roomId: validation.roomId,
             });
           });
           State.selectedTool = 'select';
@@ -264,10 +324,7 @@
           if (window.updateToolLabel) window.updateToolLabel();
           setSelection([{ id: furnitureId, type: 'furniture' }]);
           rebuild3D();
-        } else {
-          document.getElementById('status-info').textContent = t('message.overlap');
-          setTimeout(() => document.getElementById('status-info').textContent = '', 2000);
-        }
+        } else showFurniturePlacementIssue(validation.reason);
       }
       State.pendingFurniture = null;
       State.pendingFurnitureRotation = 0;
@@ -408,6 +465,11 @@
           document.getElementById('status-info').textContent = t('message.overlap');
           break;
         }
+        const activeWalls = State.walls.filter(wall => wall.levelId === State.activeLevelId);
+        if (!ProjectModel.isFootprintInsideFloor(activeWalls, { ...snapped, width: 100, length: 300, rotation: 0 })) {
+          document.getElementById('status-info').textContent = t('message.stairInside');
+          break;
+        }
         mutateProject(() => State.stairs.push({
           id: genId(), levelId: State.activeLevelId, toLevelId: target?.id || null,
           x: snapped.x, y: snapped.y,
@@ -446,20 +508,19 @@
       let ex = snapPt ? snapPt.x : snapToGrid(w.x, State.gridSize);
       let ey = snapPt ? snapPt.y : snapToGrid(w.y, State.gridSize);
       const snapped = snapAngle(State.wallStart.x, State.wallStart.y, ex, ey);
-      State.wallEnd = { x: snapped.x, y: snapped.y };
+      State.wallEnd = snapPt || { x: snapped.x, y: snapped.y };
       const len = Math.hypot(State.wallEnd.x - State.wallStart.x, State.wallEnd.y - State.wallStart.y);
       const ang = Math.atan2(State.wallEnd.y - State.wallStart.y, State.wallEnd.x - State.wallStart.x) * 180 / Math.PI;
-      document.getElementById('status-info').textContent = t('message.length') + ': ' + (len/10).toFixed(2) + ' m | ' + t('message.angle') + ': ' + ang.toFixed(1) + '\u00b0';
+      document.getElementById('status-info').textContent = t('message.length') + ': ' + (len/100).toFixed(2) + ' m | ' + t('message.angle') + ': ' + ang.toFixed(1) + '\u00b0';
       return;
     }
 
     if (draggedWallEndpoint && moveStart) {
       const { wall, endpoint } = draggedWallEndpoint;
-      const snapPt = findSnapPoint(w.x, w.y);
+      const snapPt = findSnapPoint(w.x, w.y, wall.id);
       const nx = snapPt ? snapPt.x : snapToGrid(w.x, State.gridSize);
       const ny = snapPt ? snapPt.y : snapToGrid(w.y, State.gridSize);
-      if (endpoint === 0) { wall.x1 = nx; wall.y1 = ny; }
-      else { wall.x2 = nx; wall.y2 = ny; }
+      ProjectModel.updateWallGeometry(State, wall.id, endpoint === 0 ? { x1: nx, y1: ny } : { x2: nx, y2: ny });
       moveStart = { x: w.x, y: w.y };
       rebuild3D();
       renderProps();
@@ -469,10 +530,17 @@
     if (moveStart && moveObj && State.selectedTool === 'select' && !draggedWallEndpoint) {
       const dx = w.x - moveStart.x;
       const dy = w.y - moveStart.y;
-      if (moveObj.type === 'furniture' || moveObj.type === 'stair') {
-        const footprint = moveObj.type === 'stair'
-          ? ProjectModel.getRotatedFootprint(moveObj.obj.width, moveObj.obj.length, moveObj.obj.rotation)
-          : getFurnitureFootprint(moveObj.obj);
+      if (moveObj.type === 'furniture') {
+        const footprint = getFurnitureFootprint(moveObj.obj);
+        const snapped = snapObject({
+          x: w.x + moveObj.snapOffset.x, y: w.y + moveObj.snapOffset.y, w: footprint.w, d: footprint.d,
+        }, moveObj.obj.id, FURNITURE_CLEARANCE_CM);
+        const validation = validateFurniturePlacement({ ...moveObj.obj, x: snapped.x, y: snapped.y }, moveObj.obj.id);
+        if (validation.valid) {
+          moveObj.obj.x = snapped.x; moveObj.obj.y = snapped.y; moveObj.obj.roomId = validation.roomId;
+        } else showFurniturePlacementIssue(validation.reason);
+      } else if (moveObj.type === 'stair') {
+        const footprint = ProjectModel.getRotatedFootprint(moveObj.obj.width, moveObj.obj.length, moveObj.obj.rotation);
         const snapped = snapObject({
           x: w.x + moveObj.snapOffset.x, y: w.y + moveObj.snapOffset.y, w: footprint.w, d: footprint.d,
         }, moveObj.obj.id);
@@ -485,8 +553,10 @@
           moveObj.obj.x = placed.x; moveObj.obj.y = placed.y;
         }
       } else if (moveObj.type === 'wall') {
-        moveObj.obj.x1 += dx; moveObj.obj.y1 += dy;
-        moveObj.obj.x2 += dx; moveObj.obj.y2 += dy;
+        const wall = moveObj.obj;
+        ProjectModel.updateWallGeometry(State, wall.id, {
+          x1: wall.x1 + dx, y1: wall.y1 + dy, x2: wall.x2 + dx, y2: wall.y2 + dy,
+        });
       }
       moveStart = { x: w.x, y: w.y };
       rebuild3D();
@@ -609,5 +679,5 @@
     return { x: wall.x1 + t * dx, y: wall.y1 + t * dy };
   }
 
-  window._tools = { pickAt, nearestWall, resetToolState, snapObject };
+  window._tools = { pickAt, nearestWall, resetToolState, snapObject, validateFurniturePlacement };
 })();

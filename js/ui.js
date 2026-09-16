@@ -2,6 +2,30 @@
 (function() {
   const q = String.fromCharCode(34);
   const sq = String.fromCharCode(39);
+  const CATALOG_ICON_PATHS = {
+    sofa: '<path d="M4 12V9a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3"/><path d="M3 11a2 2 0 0 1 2 2v3h14v-3a2 2 0 0 1 2-2v7H3z"/><path d="M6 18v2m12-2v2"/>',
+    chair: '<path d="M7 12V7a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v5"/><path d="M5 11a2 2 0 0 1 2 2v3h10v-3a2 2 0 0 1 2-2v7H5z"/><path d="M8 18v2m8-2v2"/>',
+    rug: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M7 8h10v8H7zm-1-3V3m4 2V3m4 2V3m4 2V3M6 21v-2m4 2v-2m4 2v-2m4 2v-2"/>',
+    art: '<rect x="4" y="3" width="16" height="18" rx="1"/><circle cx="9" cy="9" r="1.5"/><path d="m6 18 4-4 3 2 2-3 3 5"/>',
+    bed: '<path d="M3 18V7m18 11v-7a3 3 0 0 0-3-3H9v10"/><path d="M3 13h18M6 8h3a2 2 0 0 1 2 2v3H6zM5 18v2m14-2v2"/>',
+    table: '<path d="M4 9h16M6 9l-2 11m14-11 2 11M8 9V5h8v4"/>',
+    storage: '<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M12 3v18m-3-9h.01m6 0h.01M7 6h3m4 0h3"/>',
+    desk: '<path d="M3 8h18v4H3zM5 12v8m14-8v8M8 8V4h8v4"/><path d="M9 15h6"/>',
+    plant: '<path d="M8 12h8l-1 8H9zM12 12V7"/><path d="M12 8c-4 0-5-3-5-5 3 0 5 2 5 5zm0 1c4 0 5-3 5-5-3 0-5 2-5 5z"/>',
+    lamp: '<path d="M12 9v11m-4 0h8M8 9h8l-2-6h-4z"/>',
+    toilet: '<path d="M7 4h10v5H7zM8 9h9v3a5 5 0 0 1-5 5H9a2 2 0 0 1-2-2v-3a3 3 0 0 1 1-3zM10 17v3h6"/>',
+    bath: '<path d="M3 11h18v3a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5zm3 8-1 2m13-2 1 2M5 11V6a2 2 0 0 1 4 0"/>',
+    sink: '<path d="M4 10h16v3a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6zM12 10V6a2 2 0 0 1 4 0v1"/><path d="M9 19v2m6-2v2"/>',
+    stove: '<rect x="4" y="3" width="16" height="18" rx="1"/><circle cx="9" cy="9" r="2"/><circle cx="15" cy="9" r="2"/><path d="M7 15h10m-8 3h.01m3 0h.01m3 0h.01"/>',
+    fridge: '<rect x="6" y="2" width="12" height="20" rx="1"/><path d="M6 9h12m-3-4v2m0 5v4"/>',
+    washer: '<rect x="4" y="3" width="16" height="18" rx="1"/><circle cx="12" cy="13" r="5"/><path d="M7 6h.01m3 0h6"/>',
+    tv: '<rect x="3" y="4" width="18" height="13" rx="1"/><path d="m9 21 3-4 3 4m-8 0h10"/>',
+  };
+
+  document.querySelectorAll('[data-catalog-icon]').forEach(icon => {
+    const paths = CATALOG_ICON_PATHS[icon.dataset.catalogIcon] || CATALOG_ICON_PATHS.storage;
+    icon.innerHTML = '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">' + paths + '</svg>';
+  });
 
   function assignProject(data) {
     State.levels = data.levels; State.activeLevelId = data.activeLevelId;
@@ -70,10 +94,17 @@
     mutateProject(() => assignProject(duplicated));
     syncLevelsUI(); requestRedraw(); rebuild3D();
   });
+  function applyFloorMaterialToLevel(level, materialId) {
+    level.materialId = materialId;
+    level.floorFinish = ProjectModel.getFloorFinishForMaterialId(materialId);
+    State.rooms.filter(room => room.levelId === level.id).forEach(room => { room.materialId = materialId; });
+  }
   document.querySelectorAll('[data-floor-finish]').forEach(button => button.addEventListener('click', () => {
     const level = State.levels.find(item => item.id === State.activeLevelId);
-    if (!level || level.floorFinish === button.dataset.floorFinish) return;
-    mutateProject(() => { level.floorFinish = button.dataset.floorFinish; });
+    const floorFinish = button.dataset.floorFinish;
+    const materialId = ProjectModel.getDefaultFloorMaterialId(floorFinish);
+    if (!level) return;
+    mutateProject(() => applyFloorMaterialToLevel(level, materialId));
     syncLevelsUI(); rebuild3D();
   }));
   function getActiveMaterialTarget() {
@@ -87,13 +118,16 @@
       document.getElementById('status-info').textContent = t('message.selectMaterialTarget');
       return;
     }
-    mutateProject(() => { target.materialId = materialId; });
+    mutateProject(() => {
+      target.materialId = materialId;
+      if (State.activeType === 'wall') target.wallFinishId = null;
+    });
     rebuild3D(); requestRedraw(); renderProps();
   }
   document.getElementById('btn-material-floor').addEventListener('click', () => {
     const level = State.levels.find(item => item.id === State.activeLevelId);
     if (!level) return;
-    mutateProject(() => { level.materialId = document.getElementById('material-preset-select').value; });
+    mutateProject(() => applyFloorMaterialToLevel(level, document.getElementById('material-preset-select').value));
     syncLevelsUI(); rebuild3D();
   });
   document.getElementById('btn-material-selected').addEventListener('click', () => {
@@ -116,8 +150,26 @@
       return;
     }
     const materialId = State.materialBrushId || document.getElementById('material-preset-select').value;
-    mutateProject(() => { Object.assign(target, ProjectModel.applyMaterialBrush({ materialId }, target)); });
+    mutateProject(() => {
+      Object.assign(target, ProjectModel.applyMaterialBrush({ materialId }, target));
+      if (State.activeType === 'wall') target.wallFinishId = null;
+    });
     rebuild3D(); requestRedraw(); renderProps();
+  });
+  document.getElementById('btn-wall-finish-selected').addEventListener('click', () => {
+    const wall = State.activeType === 'wall' || State.activeType === 'wall-endpoint'
+      ? State.walls.find(item => item.id === State.activeObject) : null;
+    if (!wall) {
+      document.getElementById('status-info').textContent = t('message.selectMaterialTarget');
+      return;
+    }
+    mutateProject(() => { wall.wallFinishId = document.getElementById('wall-finish-select').value; wall.materialId = null; });
+    rebuild3D(); requestRedraw(); renderProps();
+  });
+  document.getElementById('btn-wall-finish-level').addEventListener('click', () => {
+    const finishId = document.getElementById('wall-finish-select').value;
+    mutateProject(() => State.walls.filter(item => item.levelId === State.activeLevelId).forEach(wall => { wall.wallFinishId = finishId; wall.materialId = null; }));
+    rebuild3D(); requestRedraw();
   });
   function updateActiveCeiling(patch) {
     const level = State.levels.find(item => item.id === State.activeLevelId);
@@ -129,17 +181,39 @@
   document.getElementById('ceiling-drop').addEventListener('change', event => updateActiveCeiling({ drop: Math.max(0, Math.min(80, Number(event.target.value) || 0)) }));
   document.getElementById('ceiling-downlights').addEventListener('change', event => updateActiveCeiling({ downlights: Math.max(0, Math.min(12, Math.round(Number(event.target.value) || 0))) }));
   document.getElementById('ceiling-cove').addEventListener('change', event => updateActiveCeiling({ coveLight: event.target.checked }));
+  document.querySelectorAll('[data-home-template]').forEach(button => button.addEventListener('click', () => {
+    const level = State.levels.find(item => item.id === State.activeLevelId);
+    if (!level) return;
+    const levelHasObjects = ['walls', 'rooms', 'furnitures', 'doors', 'windows', 'stairs']
+      .some(key => State[key].some(item => item.levelId === State.activeLevelId));
+    if (levelHasObjects) {
+      document.getElementById('status-info').textContent = t('message.homeTemplateNeedsBlank');
+      return;
+    }
+    const created = ProjectModel.createHomeTemplate(button.dataset.homeTemplate, {
+      levelId: State.activeLevelId, startId: State.nextId, height: level.height,
+    });
+    mutateProject(() => {
+      State.walls.push(...created.walls);
+      State.rooms.push(...created.rooms);
+      State.furnitures.push(...created.furnitures);
+      State.doors.push(...created.doors);
+      State.windows.push(...created.windows);
+      State.nextId = created.nextId;
+    });
+    clearSelection(); syncLevelsUI(); requestRedraw(); rebuild3D();
+    requestAnimationFrame(() => window._draw2d?.fitHome?.());
+    document.getElementById('status-info').textContent = t('message.homeTemplateAdded');
+  }));
   document.querySelectorAll('[data-room-template]').forEach(button => button.addEventListener('click', () => {
     const level = State.levels.find(item => item.id === State.activeLevelId);
     if (!level) return;
     const activeWalls = State.walls.filter(item => item.levelId === State.activeLevelId);
-    const wallXs = activeWalls.flatMap(item => [Number(item.x1) || 0, Number(item.x2) || 0]);
-    const wallYs = activeWalls.flatMap(item => [Number(item.y1) || 0, Number(item.y2) || 0]);
-    const originX = wallXs.length ? Math.max(...wallXs) + 100 : 0;
-    const originY = wallYs.length ? Math.min(...wallYs) : 0;
-    const created = ProjectModel.createRoomTemplate(button.dataset.roomTemplate, {
+    const { originX, originY } = ProjectModel.getAdjacentRoomOrigin(activeWalls, State.activeLevelId);
+    const template = ProjectModel.createRoomTemplate(button.dataset.roomTemplate, {
       levelId: State.activeLevelId, originX, originY, startId: State.nextId, height: level.height,
     });
+    const created = ProjectModel.mergeRoomTemplateWalls(activeWalls, template);
     mutateProject(() => {
       State.walls.push(...created.walls);
       State.rooms.push(...created.rooms);
@@ -222,8 +296,8 @@
   document.querySelectorAll('.style-card[data-architecture]').forEach(btn => {
     btn.addEventListener('click', () => {
       const style = btn.dataset.architecture;
-      if (!ProjectModel.ARCHITECTURE_PRESETS[style] || style === State.architectureStyle) return;
-      mutateProject(() => { State.architectureStyle = style; });
+      if (!ProjectModel.ARCHITECTURE_PRESETS[style] || (style === State.architectureStyle && style === State.style)) return;
+      mutateProject(() => { State.architectureStyle = style; State.style = style; });
       syncArchitectureUI();
       rebuild3D();
     });
@@ -235,6 +309,7 @@
       btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
     document.body.dataset.architectureStyle = State.architectureStyle;
+    document.body.dataset.interiorStyle = State.style;
   }
   window.syncArchitectureUI = syncArchitectureUI;
   syncArchitectureUI();
@@ -264,7 +339,7 @@
         ['daylight', 'warmNight', 'studio'].map(id => '<option value="' + id + '"' + (State.lightingPreset === id ? ' selected' : '') + '>' + t('lighting.' + id) + '</option>').join('') +
       '</select>' +
       '<select id="camera-preset" aria-label="' + t('control.camera') + '" style="padding:2px 5px;font-size:11px;">' +
-        ['eye', 'bird', 'isometric', 'exterior'].map(id => '<option value="' + id + '"' + (State.cameraPreset === id ? ' selected' : '') + '>' + t('camera.' + id) + '</option>').join('') +
+        ['interior', 'eye', 'bird', 'isometric', 'exterior'].map(id => '<option value="' + id + '"' + (State.cameraPreset === id ? ' selected' : '') + '>' + t('camera.' + id) + '</option>').join('') +
       '</select>' +
       '<button id="btn-camera-save" style="padding:2px 8px;">' + t('camera.save') + '</button>' +
       '<button id="btn-camera-restore"' + (State.savedCamera ? '' : ' disabled') + ' style="padding:2px 8px;">' + t('camera.restore') + '</button>' +
@@ -305,8 +380,9 @@
     document.getElementById('camera-preset').onchange = event => {
       const before = beginHistory();
       State.cameraPreset = event.target.value;
-      commitHistory(before);
       window._view3d?.setCameraPreset(State.cameraPreset);
+      commitHistory(before);
+      refreshDynamicControls();
     };
     document.getElementById('btn-camera-save').onclick = () => {
       const before = beginHistory();
@@ -401,6 +477,19 @@
     document.getElementById('status-info').textContent = t('status.newProject');
   });
   document.getElementById('btn-save').addEventListener('click', saveProject);
+  document.getElementById('btn-example').addEventListener('click', () => document.querySelector('[data-home-template="modernTwoBedroom"]').click());
+  document.getElementById('btn-fit').addEventListener('click', () => { window._draw2d?.fitHome?.(); window._view3d?.fitHome?.(); });
+  document.getElementById('btn-undo').addEventListener('click', undo);
+  document.getElementById('btn-redo').addEventListener('click', redo);
+  document.getElementById('btn-recover').addEventListener('click', () => {
+    const storage = localStorageOrNull();
+    const previous = storage && ProjectModel.loadLocalDraft(storage, true);
+    if (!previous) { alert(t('message.noBackup')); return; }
+    if (!confirm(t('prompt.recover'))) return;
+    mutateProject(() => assignProject(previous));
+    clearSelection(); syncArchitectureUI(); syncLevelsUI(); renderProps(); requestRedraw(); rebuild3D();
+    document.getElementById('status-info').textContent = t('message.recovered');
+  });
   document.getElementById('btn-load').addEventListener('click', () => document.getElementById('file-load').click());
   document.getElementById('file-load').addEventListener('change', loadProject);
 
@@ -414,6 +503,7 @@
   }
   function loadProject(e) {
     const file = e.target.files[0]; if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { alert(t('error.fileSize')); e.target.value = ''; return; }
     const reader = new FileReader();
     reader.onload = () => {
       try {
@@ -427,6 +517,7 @@
         document.getElementById('status-info').textContent = t('status.loadedProject');
       } catch (err) { alert(t('error.load') + err.message); }
     };
+    reader.onerror = () => alert(t('error.fileRead'));
     reader.readAsText(file); e.target.value = '';
   }
 
@@ -478,6 +569,10 @@
       html += colorPicker("prop.color", obj.color || getStylePreset().wall);
     } else if (type === "furniture") {
       html += `<div class="prop-row"><span data-prop-key="prop.type">${t('prop.type')}</span><span>${t(FURNITURE_DEFS[obj.type]?.labelKey || ('furniture.' + obj.type))}</span></div>`;
+      html += selectProp('prop.style', 'furniture.style', obj.styleId || State.style, [
+        ['modern', 'style.modern'], ['nordic', 'style.nordic'], ['japanese', 'style.japanese'],
+        ['wabiSabi', 'style.wabiSabi'], ['industrial', 'style.industrial'], ['american', 'style.american'],
+      ]);
       html += propNum("prop.width", obj.w.toFixed(0), 10, 500, null, 1);
       html += propNum("prop.depth", (obj.d || obj.h).toFixed(0), 10, 500, null, 1);
       html += propNum("prop.height", (obj.h || 50).toFixed(0), 5, 400, null, 1);
@@ -487,6 +582,11 @@
       html += propNum("prop.width", obj.width.toFixed(0), 50, 200, null, 5);
       html += propNum("prop.height", (obj.height || 210).toFixed(0), 160, 280, null, 5);
       html += propNum("prop.openAngle", (obj.openAngle || 75).toFixed(0), 0, 110, null, 5);
+      html += selectProp('prop.style', 'door.style', obj.styleId || State.architectureStyle, [
+        ['modern', 'style.modern'], ['nordic', 'style.nordic'], ['japanese', 'style.japanese'],
+        ['wabiSabi', 'style.wabiSabi'], ['industrial', 'style.industrial'], ['american', 'style.american'],
+      ]);
+      html += colorPicker("prop.color", obj.color || getStylePreset().wood);
       const wall = State.walls.find(item => item.id === obj.wallId);
       if (wall) html += propNum("prop.position", ProjectModel.getOpeningOffset(obj, wall).toFixed(0), obj.width / 2, Math.max(obj.width / 2, Math.hypot(wall.x2-wall.x1, wall.y2-wall.y1)-obj.width/2), null, 5);
     } else if (type === "window") {
@@ -519,23 +619,32 @@
   function colorPicker(labelKey, value, onInput) {
     return `<div class="prop-row"><span data-prop-key="${labelKey}">${t(labelKey)}</span><input type="color" value="${value}" style="width:40px;height:22px;padding:0;border:1px solid #ccc;border-radius:3px;"></div>`;
   }
+  function selectProp(labelKey, name, value, options) {
+    return `<label class="prop-row"><span data-prop-key="${labelKey}">${t(labelKey)}</span><select name="${name}">${options.map(([optionValue, optionLabel]) => `<option value="${optionValue}"${optionValue === value ? ' selected' : ''}>${t(optionLabel)}</option>`).join('')}</select></label>`;
+  }
   function bindPropInputs() {
     const box = document.getElementById("props");
-    const inputs = box.querySelectorAll("input");
+    const inputs = box.querySelectorAll("input, select");
     inputs.forEach(inp => {
       const label = inp.parentElement?.querySelector("span")?.dataset.propKey || "";
-      inp.addEventListener("input", () => {
-        let v = parseFloat(inp.value);
+      inp.addEventListener("change", () => {
+        let v = inp.tagName === 'SELECT' ? inp.value : parseFloat(inp.value);
         if (inp.type === "color") v = inp.value;
-        if (isNaN(v) && inp.type !== "color") return;
+        if (inp.tagName !== 'SELECT' && isNaN(v) && inp.type !== "color") return;
+        if (inp.type === 'number' && !inp.checkValidity()) { renderProps(); return; }
+        let placementFailure = null;
         mutateProject(() => {
           const wall = State.walls.find(item => item.id === State.activeObject);
           const furniture = State.furnitures.find(item => item.id === State.activeObject);
+          const previousFurniture = furniture ? { ...furniture } : null;
           const door = State.doors.find(item => item.id === State.activeObject);
           const win = State.windows.find(item => item.id === State.activeObject);
           const stair = State.stairs.find(item => item.id === State.activeObject);
-          if (label === "prop.length" && wall) { const a = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1); wall.x2 = wall.x1 + Math.cos(a) * v; wall.y2 = wall.y1 + Math.sin(a) * v; }
-          if (label === "prop.angle" && wall) { const len = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1); const a = v * Math.PI / 180; wall.x2 = wall.x1 + Math.cos(a) * len; wall.y2 = wall.y1 + Math.sin(a) * len; }
+          if (wall && ['prop.length', 'prop.angle'].includes(label)) {
+            const angle = label === 'prop.angle' ? v * Math.PI / 180 : Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
+            const length = label === 'prop.length' ? v : Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
+            if (!ProjectModel.updateWallGeometry(State, wall.id, { x2: wall.x1 + Math.cos(angle) * length, y2: wall.y1 + Math.sin(angle) * length })) placementFailure = 'wallGeometry';
+          }
           if (label === "prop.thickness" && wall) wall.thickness = v;
           if (label === "prop.height") { if (furniture) furniture.h = v; else if (wall) wall.height = v; }
           if (label === "prop.height") { if (door) door.height = v; if (win) win.height = v; }
@@ -547,6 +656,8 @@
           if (label === 'prop.steps' && stair) stair.stepCount = Math.round(v);
           if (label === 'prop.rotation' && stair) stair.rotation = v * Math.PI / 180;
           if (label === "prop.openAngle" && door) door.openAngle = v;
+          if (label === "prop.style" && door) door.styleId = v;
+          if (label === "prop.style" && furniture) furniture.styleId = v;
           if (label === "prop.sillHeight" && win) win.sillHeight = v;
           if (label === "prop.position" && (door || win)) {
             const opening = door || win;
@@ -558,8 +669,22 @@
             const openingWall = State.walls.find(item => item.id === opening.wallId);
             if (openingWall) Object.assign(opening, ProjectModel.placeOpeningOnWall(opening, openingWall, ProjectModel.getOpeningOffset(opening, openingWall)));
           }
-          if (label === "prop.color" && (wall || furniture)) (wall || furniture).color = v;
+          if (label === "prop.color" && (wall || furniture || door)) {
+            (wall || furniture || door).color = v;
+            if (wall) { wall.wallFinishId = null; wall.materialId = null; }
+          }
+          if (furniture && ['prop.width', 'prop.depth', 'prop.height', 'prop.rotation'].includes(label)) {
+            const validation = window._tools?.validateFurniturePlacement?.(furniture, furniture.id);
+            if (validation && !validation.valid) {
+              Object.assign(furniture, previousFurniture);
+              placementFailure = validation.reason;
+            } else if (validation) furniture.roomId = validation.roomId;
+          }
         });
+        if (placementFailure) {
+          document.getElementById('status-info').textContent = placementFailure === 'wallGeometry' ? t('message.wallTooShort') : placementFailure === 'floor' ? t('message.furnitureInside') : t('message.furnitureClearance');
+          renderProps();
+        }
         requestRedraw();
         rebuild3D();
       });

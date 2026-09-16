@@ -10,11 +10,16 @@
   let moveF = false, moveB = false, moveL = false, moveR = false, moveSpeed = 0.08;
   let yaw = 0, pitch = 0, keysDown = {};
   let furnitureDrag = null;
+  let photoEnvironmentTexture = null;
+  let photoEnvironmentPromise = null;
   let activeFurnitureMaterialPreset = null;
   let activeFurnitureMaterialId = null;
+  let activeFurnitureStylePreset = null;
   const textureCache = new Map();
   const furnitureModelCache = new Map();
   const FURNITURE_MODEL_SPECS = {
+    sofa: { url: 'assets/models/glam_velvet_sofa/GlamVelvetSofa.glb', rotationY: Math.PI },
+    armchair: { url: 'assets/models/modern_arm_chair_01/modern_arm_chair_01_1k.gltf', rotationY: Math.PI },
     coffeeTable: { url: 'assets/models/coffee_table_round_01/coffee_table_round_01_1k.gltf', rotationY: 0 },
     mediaCabinet: { url: 'assets/models/modern_wooden_cabinet/modern_wooden_cabinet_1k.gltf', rotationY: Math.PI },
   };
@@ -28,6 +33,30 @@
   function isVisibleItem(item) { return !item.levelId || visibleLevelIds().has(item.levelId); }
   function levelElevation(levelId) {
     return ((State.levels || []).find(level => level.id === levelId)?.elevation || 0) / 100;
+  }
+
+  function loadPhotoEnvironment() {
+    if (photoEnvironmentTexture || photoEnvironmentPromise || !window.hdrLoaderReady) return photoEnvironmentPromise;
+    photoEnvironmentPromise = Promise.resolve(window.hdrLoaderReady)
+      .then(LoaderClass => new Promise((resolve, reject) => new LoaderClass().load(
+        'assets/environments/poly_haven_studio_1k.hdr',
+        resolve,
+        undefined,
+        reject,
+      )))
+      .then(texture => {
+        if (!renderer) { texture.dispose(); return null; }
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        pmrem.compileEquirectangularShader();
+        photoEnvironmentTexture = pmrem.fromEquirectangular(texture).texture;
+        texture.dispose();
+        pmrem.dispose();
+        applyStyleEnvironment();
+        return photoEnvironmentTexture;
+      })
+      .catch(() => null);
+    return photoEnvironmentPromise;
   }
 
   function init() {
@@ -47,9 +76,10 @@
     renderer.toneMappingExposure = 1.08;
     renderer.useLegacyLights = false;
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.setSize(w, h);
     container.appendChild(renderer.domElement);
+    loadPhotoEnvironment();
 
     ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
     scene.add(ambientLight);
@@ -65,6 +95,8 @@
     dirLight.shadow.camera.bottom = -60;
     dirLight.shadow.bias = -0.00035;
     dirLight.shadow.normalBias = 0.025;
+    dirLight.shadow.radius = 2.5;
+    dirLight.shadow.blurSamples = 16;
     scene.add(dirLight);
     scene.add(dirLight.target);
 
@@ -137,6 +169,7 @@
         floor.receiveShadow = true;
         floorGroup.add(floor);
       }
+      buildRoomFloorFinishes(currentLevel, baseY + 0.006);
       return;
     }
     const slabPad = Math.max(0.045, getAverageWallThickness(currentLevel.id) / 2 + 0.018);
@@ -146,6 +179,25 @@
     floor.position.set(cx, baseY - floorThickness / 2 + 0.001, cz);
     floor.receiveShadow = true;
     floorGroup.add(floor);
+    buildRoomFloorFinishes(currentLevel, baseY + 0.006);
+  }
+
+  function buildRoomFloorFinishes(level, surfaceY) {
+    State.rooms
+      .filter(room => room.levelId === level.id && room.materialId && Number(room.w) > 0 && Number(room.d) > 0)
+      .forEach(room => {
+        const width = Number(room.w) / 100;
+        const depth = Number(room.d) / 100;
+        const finish = new THREE.Mesh(
+          new THREE.PlaneGeometry(width, depth),
+          makePresetMaterial(room.materialId, width, depth, { photoScannedFloor: true }),
+        );
+        finish.rotation.x = -Math.PI / 2;
+        finish.position.set(Number(room.x) / 100, surfaceY, Number(room.y) / 100);
+        finish.receiveShadow = true;
+        finish.userData = { id: room.id, type: 'room-floor-finish', levelId: room.levelId };
+        floorGroup.add(finish);
+      });
   }
 
   function makeFloorTexture(finish) {
@@ -272,6 +324,25 @@
       ctx.globalAlpha = 0.34;
       ctx.strokeStyle = 'rgba(85,68,48,0.45)';
       ctx.strokeRect(1, 1, detail - 2, detail - 2);
+    } else if (preset.pattern === 'tile') {
+      ctx.strokeStyle = 'rgba(96,86,76,.28)';
+      ctx.lineWidth = Math.max(2, detail / 256);
+      ctx.strokeRect(1, 1, detail - 2, detail - 2);
+      ctx.globalAlpha = 0.13;
+      for (let vein = 0; vein < 7; vein += 1) {
+        const y = detail * (0.12 + vein * 0.13);
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.bezierCurveTo(detail * 0.3, y - detail * 0.04, detail * 0.64, y + detail * 0.05, detail, y - detail * 0.02); ctx.stroke();
+      }
+    } else if (preset.pattern === 'terrazzo') {
+      const chips = ['#ffffff', '#a99e90', '#7f776f', '#c0a797'];
+      for (let chip = 0; chip < 180; chip += 1) {
+        const x = (chip * 83) % detail; const y = (chip * 137) % detail;
+        ctx.fillStyle = chips[chip % chips.length];
+        ctx.globalAlpha = 0.38 + (chip % 4) * 0.1;
+        ctx.beginPath(); ctx.ellipse(x, y, 2 + chip % 5, 1.5 + chip % 3, chip * 0.31, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = 'rgba(88,79,70,.28)'; ctx.strokeRect(1, 1, detail - 2, detail - 2);
     } else if (preset.pattern === 'fabric') {
       ctx.globalAlpha = 0.22; ctx.lineWidth = Math.max(1, detail / 512);
       for (let p = 0; p < detail; p += detail / 32) {
@@ -314,6 +385,7 @@
       color: 0xffffff,
       roughness: preset.roughness,
       metalness: preset.metalness,
+      envMapIntensity: State.renderMode === 'photo' ? 0.82 : 0.48,
     });
     if (options?.photoScannedFloor && preset.pbrFloorAsset) applyPhotoScannedFloorMaps(material, preset, widthM, depthM);
     return material;
@@ -485,7 +557,9 @@
   }
 
   function buildCeiling(level) {
-    const config = level.ceiling || ProjectModel.DEFAULT_CEILING;
+    const config = State.cameraPreset === 'interior' && !level.ceiling?.enabled
+      ? { ...ProjectModel.DEFAULT_CEILING, enabled: true, drop: 0 }
+      : level.ceiling || ProjectModel.DEFAULT_CEILING;
     if (!config.enabled || !ceilingGroup) return;
     const bounds = getLevelBounds(level.id);
     const width = Math.max(0.6, bounds.maxX - bounds.minX);
@@ -643,7 +717,7 @@
     const lighting = ProjectModel.LIGHTING_PRESETS[State.lightingPreset] || ProjectModel.LIGHTING_PRESETS.daylight;
     const skyTexture = makeSkyTexture(preset.sky);
     scene.background = skyTexture;
-    scene.environment = skyTexture;
+    scene.environment = State.renderMode === 'photo' && photoEnvironmentTexture ? photoEnvironmentTexture : skyTexture;
     scene.backgroundBlurriness = State.renderMode === 'photo' ? 0.12 : 0;
     scene.fog.color.set(preset.sky);
     ambientLight.color.set(0xffffff);
@@ -693,6 +767,7 @@
           light.shadow.mapSize.set(1024, 1024);
           light.shadow.bias = -0.001;
           light.shadow.normalBias = 0.035;
+          light.shadow.radius = 2.5;
         }
         light.userData = { type: 'photo-practical-light', levelId: level.id };
         photoLightGroup.add(light);
@@ -702,16 +777,16 @@
 
   function updateCutaway() {
     if (!wallGroup || !doorGroup || !camera) return;
-    const hiddenWallIds = cutawayMode && !walkMode
+    const hiddenWallIds = cutawayMode && !walkMode && State.cameraPreset !== 'interior'
       ? new Set(ProjectModel.computeCutawayWallIds(State.walls.filter(isVisibleItem), camera.position))
       : new Set();
     wallGroup.children.forEach(mesh => { mesh.visible = !hiddenWallIds.has(mesh.userData.wallId); });
     doorGroup.children.forEach(group => { group.visible = !hiddenWallIds.has(group.userData.wallId); });
     if (roofGroup) roofGroup.visible = ProjectModel.shouldShowRoof({ buildingViewMode, cutawayMode, walkMode });
     if (ceilingGroup) ceilingGroup.children.forEach(object => {
-      if (object.userData?.type === 'ceiling-panel') object.visible = walkMode || State.cameraPreset === 'eye';
+      if (object.userData?.type === 'ceiling-panel') object.visible = walkMode || ['eye', 'interior'].includes(State.cameraPreset);
     });
-    if (siteGroup) siteGroup.visible = true;
+    if (siteGroup) siteGroup.visible = ProjectModel.shouldShowSite({ buildingViewMode, cutawayMode, walkMode, cameraPreset: State.cameraPreset });
   }
 
   function onResize() {
@@ -833,12 +908,20 @@
         if (point && furniture) {
           const footprint = ProjectModel.getRotatedFootprint(furniture.w, furniture.d || furniture.h, furniture.rotation);
           const raw = { x: (point.x + furnitureDrag.offsetX) * 100, y: (point.z + furnitureDrag.offsetZ) * 100, w: footprint.w, d: footprint.d };
-          const snapped = window._tools?.snapObject ? window._tools.snapObject(raw, furniture.id) : raw;
-          furniture.x = Math.round(snapped.x);
-          furniture.y = Math.round(snapped.y);
-          furnitureDrag.group.position.set(furniture.x / 100, levelElevation(furniture.levelId), furniture.y / 100);
-          requestRedraw();
-          if (window.renderProps) window.renderProps();
+          const snapped = window._tools?.snapObject ? window._tools.snapObject(raw, furniture.id, 25) : raw;
+          const candidate = { ...furniture, x: Math.round(snapped.x), y: Math.round(snapped.y) };
+          const validation = window._tools?.validateFurniturePlacement?.(candidate, furniture.id) || { valid: true, roomId: furniture.roomId };
+          if (validation.valid) {
+            furniture.x = candidate.x;
+            furniture.y = candidate.y;
+            furniture.roomId = validation.roomId;
+            furnitureDrag.group.position.set(furniture.x / 100, levelElevation(furniture.levelId) + Math.max(0, Number(furniture.elevation) || 0) / 100, furniture.y / 100);
+            requestRedraw();
+            if (window.renderProps) window.renderProps();
+          } else {
+            const status = document.getElementById('status-info');
+            if (status) status.textContent = validation.reason === 'floor' ? t('message.furnitureInside') : t('message.furnitureClearance');
+          }
         }
       } else if (isPanning) {
         const dx = e.clientX - lastX, dy = e.clientY - lastY;
@@ -882,11 +965,29 @@
       const bounds = getHomeBounds();
       const vertical = getBuildingVerticalBounds();
       const focus = buildingViewMode === 'all' ? vertical : getFocusVerticalBounds();
+      if (id === 'interior') {
+        const rooms = State.rooms.filter(room => room.levelId === State.activeLevelId);
+        const selected = rooms.find(room => room.id === State.activeObject)
+          || rooms.find(room => room.templateId === 'living')
+          || rooms.slice().sort((a, b) => b.w * b.d - a.w * a.d)[0];
+        const cx = selected ? selected.x / 100 : (bounds.minX + bounds.maxX) / 2;
+        const cz = selected ? selected.y / 100 : (bounds.minZ + bounds.maxZ) / 2;
+        const width = selected ? selected.w / 100 : Math.max(1, bounds.maxX - bounds.minX);
+        const depth = selected ? selected.d / 100 : Math.max(1, bounds.maxZ - bounds.minZ);
+        const eyeY = levelElevation(State.activeLevelId) + 1.5;
+        const eye = new THREE.Vector3(cx - width * 0.40, eyeY, cz - depth * 0.40);
+        target.set(cx + width * 0.12, eyeY, cz + depth * 0.18);
+        const delta = eye.clone().sub(target);
+        radius = delta.length(); theta = Math.atan2(delta.z, delta.x); phi = Math.PI / 2;
+        camera.fov = preset.fov; camera.updateProjectionMatrix();
+        updateCameraOrbit(target, radius, theta, phi);
+        return;
+      }
       if (id === 'eye' && buildingViewMode === 'active') {
         const width = Math.max(1, bounds.maxX - bounds.minX);
         const depth = Math.max(1, bounds.maxZ - bounds.minZ);
         const eyeY = focus.minY + Math.min(1.62, Math.max(1.35, (focus.maxY - focus.minY) * 0.56));
-        const eye = new THREE.Vector3(bounds.minX - width * 0.08, eyeY, bounds.minZ - depth * 0.08);
+        const eye = new THREE.Vector3(bounds.minX - width * 0.32, eyeY, bounds.minZ - depth * 0.32);
         target.set(bounds.minX + width * 0.55, eyeY - 0.28, bounds.minZ + depth * 0.52);
         const delta = eye.clone().sub(target);
         radius = Math.max(0.01, delta.length());
@@ -897,9 +998,12 @@
         updateCameraOrbit(target, radius, theta, phi);
         return;
       }
+      const width = bounds.maxX - bounds.minX;
+      const depth = bounds.maxZ - bounds.minZ;
       const visibleHeightFromFocus = Math.max(focus.maxY - vertical.minY, focus.maxY - focus.minY);
       target.set((bounds.minX + bounds.maxX) / 2, (focus.minY + focus.maxY) / 2, (bounds.minZ + bounds.maxZ) / 2);
-      radius = Math.max(6, Math.max(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ, visibleHeightFromFocus) * preset.radiusScale);
+      const horizontalSpan = id === 'isometric' ? Math.hypot(width, depth) : Math.max(width, depth);
+      radius = Math.max(6, Math.max(horizontalSpan, visibleHeightFromFocus) * preset.radiusScale);
       theta = preset.theta;
       phi = preset.phi;
       camera.fov = preset.fov;
@@ -986,6 +1090,7 @@
     if (!object) return;
     object.userData = { ...(object.userData || {}), disposed: true };
     [...(object.children || [])].forEach(disposeObject);
+    if (object.isLight && typeof object.dispose === 'function') object.dispose();
     if (object.geometry) object.geometry.dispose();
     if (object.material) {
       const disposeMaterial = material => {
@@ -1061,12 +1166,16 @@
       const width = segment.end - segment.start;
       const height = segment.top - segment.bottom;
       const center = (segment.start + segment.end) / 2;
-      const wallMaterial = makePresetMaterial(w.materialId, width, height)
+      const wallMaterial = makeWallFinishMaterial(w.wallFinishId, width, height, segment.start, segment.bottom)
+        || makePresetMaterial(w.materialId, width, height)
         || new THREE.MeshStandardMaterial({
-          map: makeWallTexture(wallColor),
-          color: 0xffffff,
+          map: makeWallTexture(),
+          bumpMap: makeWallBumpTexture(),
+          bumpScale: 0.0012,
+          color: wallColor,
           roughness: getStylePreset().wallRoughness || 0.88,
           metalness: 0.0,
+          envMapIntensity: 0.32,
         });
       const mesh = new THREE.Mesh(
         new THREE.BoxGeometry(width, height, thick),
@@ -1091,6 +1200,70 @@
         trim.rotation.y = -angle; trim.userData = { wallId: w.id, type: 'crown' }; wallGroup.add(trim);
       }
     }
+  }
+
+  function makeWallFinishMaterial(finishId, widthM, heightM, startM = 0, bottomM = 0) {
+    const finish = ProjectModel.WALL_FINISH_PRESETS?.[finishId];
+    if (!finish) return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = finish.color;
+    ctx.fillRect(0, 0, 512, 512);
+    if (finish.pattern === 'tile') {
+      ctx.strokeStyle = 'rgba(92,82,72,.34)';
+      ctx.lineWidth = 7;
+      ctx.strokeRect(2, 2, 508, 508);
+      ctx.globalAlpha = 0.08;
+      for (let index = 0; index < 24; index += 1) {
+        ctx.beginPath(); ctx.arc((index * 97) % 512, (index * 173) % 512, 8 + index % 13, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    } else if (finish.pattern === 'slats') {
+      ctx.fillStyle = finish.color;
+      ctx.fillRect(0, 0, 430, 512);
+      ctx.fillStyle = '#241b17';
+      ctx.fillRect(430, 0, 82, 512);
+      ctx.globalAlpha = 0.14;
+      ctx.strokeStyle = finish.colorAlt;
+      for (let y = 18; y < 512; y += 42) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.bezierCurveTo(120, y - 8, 290, y + 10, 430, y); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.globalAlpha = 0.16;
+      ctx.strokeStyle = finish.colorAlt;
+      for (let index = 0; index < 220; index += 1) {
+        const x = (index * 83) % 512; const y = (index * 149) % 512;
+        ctx.beginPath(); ctx.arc(x, y, 1 + index % 3, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    const map = new THREE.CanvasTexture(canvas);
+    map.wrapS = map.wrapT = THREE.RepeatWrapping;
+    const unitWidthM = Math.max(0.01, (finish.surfaceLengthCm || finish.scaleCm || 100) / 100);
+    const unitHeightM = Math.max(0.01, (finish.surfaceWidthCm || finish.scaleCm || 100) / 100);
+    map.repeat.set(Math.max(0.01, widthM / unitWidthM), Math.max(0.01, heightM / unitHeightM));
+    map.offset.set(((startM / unitWidthM) % 1 + 1) % 1, ((bottomM / unitHeightM) % 1 + 1) % 1);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.userData.surfaceClone = true;
+    configureTexture(map);
+    let bumpMap = makeWallBumpTexture();
+    if (finish.pattern !== 'plaster') {
+      bumpMap = map.clone();
+      bumpMap.colorSpace = THREE.NoColorSpace;
+      bumpMap.userData.surfaceClone = true;
+      configureTexture(bumpMap);
+    }
+    return new THREE.MeshStandardMaterial({
+      map,
+      bumpMap,
+      bumpScale: finish.pattern === 'tile' ? 0.002 : finish.pattern === 'slats' ? 0.012 : 0.0012,
+      color: 0xffffff,
+      roughness: finish.roughness,
+      metalness: finish.metalness,
+      envMapIntensity: 0.34,
+    });
   }
 
   function makeContactShadowTexture() {
@@ -1139,20 +1312,19 @@
     contactShadowGroup.add(shadow);
   }
 
-  function makeWallTexture(color) {
-    const key = 'wall:' + color;
+  function makeWallTexture() {
+    const key = 'wall:neutral-plaster';
     if (textureCache.has(key)) return textureCache.get(key);
     const c = document.createElement('canvas');
     c.width = c.height = 128;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = color;
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, 128, 128);
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 28; i += 1) {
+    ctx.fillStyle = 'rgba(92,86,78,0.025)';
+    for (let i = 0; i < 360; i += 1) {
       const x = (i * 47) % 128;
       const y = (i * 71) % 128;
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo((x + 13) % 128, (y + 5) % 128); ctx.stroke();
+      ctx.fillRect(x, y, 1, 1);
     }
     const tex = new THREE.CanvasTexture(c);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
@@ -1161,6 +1333,30 @@
     configureTexture(tex);
     textureCache.set(key, tex);
     return tex;
+  }
+
+  function makeWallBumpTexture() {
+    const key = 'wall:bump:plaster';
+    if (textureCache.has(key)) return textureCache.get(key);
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, 256, 256);
+    for (let index = 0; index < 950; index += 1) {
+      const x = (index * 73) % 256;
+      const y = (index * 151) % 256;
+      const value = 112 + ((index * 37) % 34);
+      ctx.fillStyle = `rgb(${value},${value},${value})`;
+      ctx.fillRect(x, y, index % 5 === 0 ? 2 : 1, index % 7 === 0 ? 2 : 1);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(5, 5);
+    texture.colorSpace = THREE.NoColorSpace;
+    configureTexture(texture);
+    textureCache.set(key, texture);
+    return texture;
   }
 
   // ---- Door ----
@@ -1206,9 +1402,13 @@
     g.rotation.y = -angle;
     g.userData.wallId = wall.id;
 
-    const architecture = getArchitecturePreset();
+    const architecture = ProjectModel.ARCHITECTURE_PRESETS[d.styleId] || getArchitecturePreset();
+    const doorStyle = ProjectModel.STYLE_PRESETS[d.styleId] || getStylePreset();
     const ft = architecture.frameWidth;
-    const fm = mat(getStylePreset().wood, { roughness: 0.7 });
+    const profile = architecture.doorProfile;
+    const frameColor = profile === 'steel' ? doorStyle.metal : doorStyle.wood;
+    const fm = mat(frameColor, { roughness: profile === 'steel' ? 0.45 : 0.7, metalness: profile === 'steel' ? 0.38 : 0 });
+    const leafColor = d.color || frameColor;
 
     // Frame strips line the actual wall opening.
     for (const sx of [-1, 1]) {
@@ -1220,17 +1420,25 @@
     const leaf = new THREE.Group();
     leaf.position.x = pose.hingeSide * dw / 2;
     leaf.rotation.y = pose.hingeSide * (d.swing === -1 ? -1 : 1) * pose.openAngle * Math.PI / 180;
-    leaf.add(mkBox(leafW, dh - 0.1, 0.035, mat(getStylePreset().wood, {roughness:0.75}), -pose.hingeSide * leafW / 2, (dh-0.1)/2, 0));
-    decorateDoorLeaf(leaf, leafW, dh - 0.1, pose.hingeSide, architecture.doorProfile);
-    leaf.add(mkSphere(0.025, mat(getStylePreset().metal, {metalness:0.65, roughness:0.25}), -pose.hingeSide * (leafW - 0.12), dh*0.5, 0.035));
+    leaf.add(mkBox(leafW, dh - 0.1, profile === 'steel' ? 0.045 : 0.035, mat(leafColor, { roughness: profile === 'steel' ? 0.42 : 0.75, metalness: profile === 'steel' ? 0.45 : 0 }), -pose.hingeSide * leafW / 2, (dh-0.1)/2, 0));
+    decorateDoorLeaf(leaf, leafW, dh - 0.1, pose.hingeSide, profile, doorStyle);
+    const hardware = mat('#a4a09a', { metalness: 0.85, roughness: 0.28 });
+    for (const side of [-1, 1]) {
+      const handleX = -pose.hingeSide * (leafW - 0.12);
+      const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.009, 24), hardware);
+      plate.rotation.x = Math.PI / 2; plate.position.set(handleX, 1.02, side * 0.023); leaf.add(plate);
+      const lever = mkRoundedBox(0.11, 0.014, 0.021, 0.006, hardware);
+      lever.position.set(handleX + pose.hingeSide * 0.04, 1.02, side * 0.06); leaf.add(lever);
+      leaf.add(mkBox(0.012, 0.014, 0.04, hardware, handleX, 1.02, side * 0.04));
+    }
     g.add(leaf);
 
     doorGroup.add(g);
   }
 
-  function decorateDoorLeaf(leaf, width, height, hingeSide, profile) {
+  function decorateDoorLeaf(leaf, width, height, hingeSide, profile, stylePreset) {
     const cx = -hingeSide * width / 2;
-    const accent = mat(getStylePreset().metal, { metalness: profile === 'steel' ? 0.65 : 0.15, roughness: 0.45 });
+    const accent = mat(stylePreset.metal, { metalness: profile === 'steel' ? 0.65 : 0.15, roughness: 0.45 });
     if (profile === 'groove') {
       for (const x of [-0.22, 0, 0.22]) leaf.add(mkBox(0.012, height * 0.78, 0.012, accent, cx + x * width, height * 0.52, 0.024));
     } else if (profile === 'slatted') {
@@ -1280,16 +1488,18 @@
     for (const sy of [-1, 1]) g.add(mkBox(ww + ft*2, ft, wallThick + 0.02, fm, 0, sy*(wh/2+ft/2), 0));
     // Glass (transparent, fills opening)
     const glass = mkBox(ww - ft*2, wh - ft*2, 0.015, new THREE.MeshPhysicalMaterial({
-      color: 0xc8e4ef,
+      color: 0xeaf3f4,
       transparent: true,
-      opacity: 0.42,
-      transmission: 0.32,
+      opacity: 0.2,
+      transmission: 0.72,
       thickness: 0.012,
-      roughness: 0.08,
+      roughness: 0.14,
       metalness: 0,
+      ior: 1.5,
       clearcoat: 1,
-      clearcoatRoughness: 0.08,
+      clearcoatRoughness: 0.12,
       side: THREE.DoubleSide,
+      depthWrite: false,
     }), 0, 0, wallThick/2 + 0.012);
     glass.castShadow = false;
     glass.receiveShadow = false;
@@ -1306,6 +1516,35 @@
     }
     // Sill (small ledge below)
     g.add(mkBox(ww + 0.1, 0.04, 0.06, mat(0x555555, {roughness:0.7}), 0, -wh/2 - 0.02, wallThick/2 + 0.03));
+
+    if (State.renderMode === 'photo') {
+      const bounds = getLevelBounds(wall.levelId);
+      const towardRoom = ((bounds.minX + bounds.maxX) / 2 - pos.x) * -Math.sin(angle)
+        + ((bounds.minZ + bounds.maxZ) / 2 - pos.z) * Math.cos(angle);
+      const side = towardRoom >= 0 ? 1 : -1;
+      const curtainZ = side * (wallThick / 2 + 0.11);
+      const curtainTop = wallH - 0.12;
+      const curtainHeight = curtainTop - 0.03;
+      const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, ww + 0.55, 12), mat('#796c59', { metalness: 0.75, roughness: 0.32 }));
+      rod.rotation.z = Math.PI / 2;
+      rod.position.set(0, curtainTop - wc, curtainZ);
+      g.add(rod);
+      for (const direction of [-1, 1]) {
+        const panelWidth = Math.max(0.22, ww * 0.24);
+        const geometry = new THREE.PlaneGeometry(panelWidth, curtainHeight, 28, 12);
+        const vertices = geometry.attributes.position;
+        for (let index = 0; index < vertices.count; index += 1) {
+          const x = vertices.getX(index), y = vertices.getY(index);
+          vertices.setZ(index, Math.sin(x / panelWidth * Math.PI * 10) * 0.038 + Math.sin(y * 3 + x * 8) * 0.004);
+        }
+        geometry.computeVertexNormals();
+        const curtain = new THREE.Mesh(geometry, fabricMaterial('#d7cdbb'));
+        curtain.position.set(direction * (ww / 2 + 0.04), curtainTop - wc - curtainHeight / 2, curtainZ);
+        curtain.castShadow = true; curtain.receiveShadow = true;
+        curtain.userData.type = 'linen-curtain';
+        g.add(curtain);
+      }
+    }
 
     doorGroup.add(g);
   }
@@ -1351,6 +1590,8 @@
   }
 
   function buildStair(stair) {
+    const levelWalls = State.walls.filter(wall => wall.levelId === stair.levelId);
+    if (!ProjectModel.isFootprintInsideFloor(levelWalls, stair)) return;
     const current = State.levels.find(level => level.id === stair.levelId) || ProjectModel.DEFAULT_LEVEL;
     const target = State.levels.find(level => level.id === stair.toLevelId);
     const desiredRise = ((target?.elevation ?? (current.elevation + current.height + current.floorThickness)) - current.elevation) / 100;
@@ -1374,8 +1615,12 @@
   }
 
   // ---- Furniture ----  // ---- Furniture ----
+  function getFurnitureStylePreset() {
+    return activeFurnitureStylePreset || getStylePreset();
+  }
+
   function defaultFurnitureColor(type) {
-    const preset = getStylePreset();
+    const preset = getFurnitureStylePreset();
     if (['sofa', 'lamp'].includes(type)) return preset.fabric;
     if (['fridge', 'tv', 'stove', 'washer'].includes(type)) return preset.metal;
     if (type === 'plant') return preset.accent;
@@ -1388,11 +1633,15 @@
     g.position.set(f.x / 100, levelElevation(f.levelId) + Math.max(0, Number(f.elevation) || 0) / 100, f.y / 100);
     g.rotation.y = -(f.rotation || 0);
     const materialPreset = ProjectModel.MATERIAL_PRESETS[f.materialId];
+    activeFurnitureStylePreset = ProjectModel.STYLE_PRESETS[f.styleId] || getStylePreset();
     const col = f.color || materialPreset?.color || defaultFurnitureColor(f.type);
     activeFurnitureMaterialPreset = materialPreset || null;
     activeFurnitureMaterialId = materialPreset ? f.materialId : null;
     switch (f.type) {
       case "sofa": buildSofa(g, f, col); break;
+      case "armchair": buildArmchair(g, f, col); break;
+      case "rug": buildRug(g, f, col); break;
+      case "artwork": buildArtwork(g, f, col); break;
       case "bed": buildBed(g, f, col); break;
       case "table": buildTable(g, f, col); break;
       case "wardrobe": buildWardrobe(g, f, col); break;
@@ -1412,13 +1661,17 @@
     groundFurnitureGroup(g);
     activeFurnitureMaterialPreset = null;
     activeFurnitureMaterialId = null;
-    addFurnitureContactShadow(g, f);
+    activeFurnitureStylePreset = null;
+    if (f.type !== 'rug' && !(Number(f.elevation) > 0)) addFurnitureContactShadow(g, f);
     addFurnitureSelectionRing(g, f);
     furnGroup.add(g);
     queueCatalogFurnitureModel(g, f);
   }
 
   function getFurnitureModelSpec(furniture) {
+    if ((furniture.styleId || State.style) !== 'modern') return null;
+    if (furniture.type === 'sofa') return FURNITURE_MODEL_SPECS.sofa;
+    if (furniture.type === 'armchair') return FURNITURE_MODEL_SPECS.armchair;
     if (furniture.type === 'table' && Number(furniture.h || 75) <= 55) return FURNITURE_MODEL_SPECS.coffeeTable;
     if (furniture.type === 'cabinet' && Number(furniture.w || 80) >= 120) return FURNITURE_MODEL_SPECS.mediaCabinet;
     return null;
@@ -1449,24 +1702,31 @@
     if (!spec || !window.modelLoaderReady) return;
     loadCatalogFurnitureModel(spec).then(source => {
       if (group.userData.disposed || !group.parent) return;
-      const model = cloneCatalogFurnitureModel(source);
-      model.rotation.y = spec.rotationY || 0;
-      model.updateMatrixWorld(true);
-      const rawBounds = new THREE.Box3().setFromObject(model);
-      const rawSize = rawBounds.getSize(new THREE.Vector3());
       const target = {
         x: Math.max(0.1, Number(furniture.w || 60) / 100),
         y: Math.max(0.1, Number(furniture.h || 60) / 100),
         z: Math.max(0.1, Number(furniture.d || 60) / 100),
       };
-      const scale = Math.min(target.x / Math.max(0.001, rawSize.x), target.y / Math.max(0.001, rawSize.y), target.z / Math.max(0.001, rawSize.z));
-      model.scale.multiplyScalar(scale);
-      model.updateMatrixWorld(true);
-      const scaledBounds = new THREE.Box3().setFromObject(model);
-      const center = scaledBounds.getCenter(new THREE.Vector3());
-      model.position.x -= center.x;
-      model.position.y -= scaledBounds.min.y;
-      model.position.z -= center.z;
+      const copies = Math.max(1, Math.floor(spec.copies || 1));
+      const model = new THREE.Group();
+      const gap = copies > 1 ? 0.035 : 0;
+      const targetWidth = (target.x - gap * (copies - 1)) / copies;
+      for (let index = 0; index < copies; index += 1) {
+        const part = cloneCatalogFurnitureModel(source);
+        part.rotation.y = spec.rotationY || 0;
+        part.updateMatrixWorld(true);
+        const rawBounds = new THREE.Box3().setFromObject(part);
+        const rawSize = rawBounds.getSize(new THREE.Vector3());
+        const scale = Math.min(targetWidth / Math.max(0.001, rawSize.x), target.y / Math.max(0.001, rawSize.y), target.z / Math.max(0.001, rawSize.z));
+        part.scale.multiplyScalar(scale);
+        part.updateMatrixWorld(true);
+        const partBounds = new THREE.Box3().setFromObject(part);
+        const partCenter = partBounds.getCenter(new THREE.Vector3());
+        part.position.x += (index - (copies - 1) / 2) * (targetWidth + gap) - partCenter.x;
+        part.position.y -= partBounds.min.y;
+        part.position.z -= partCenter.z;
+        model.add(part);
+      }
       [...group.children].forEach(child => {
         const keep = child.name === 'selection-ring' || child.userData?.type === 'furniture-contact-shadow';
         if (!keep) { group.remove(child); disposeObject(child); }
@@ -1529,7 +1789,33 @@
       map: texture,
       roughness: activeFurnitureMaterialPreset?.roughness ?? 0.7,
       metalness: activeFurnitureMaterialPreset?.metalness ?? 0.05,
+      envMapIntensity: State.renderMode === 'photo' ? 0.9 : 0.52,
       ...(opts || {}),
+    });
+  }
+
+  function fabricMaterial(color) {
+    const key = 'fabric:micro-weave';
+    let texture = textureCache.get(key);
+    if (!texture) {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#888888'; ctx.fillRect(0, 0, 128, 128);
+      for (let y = 0; y < 128; y += 2) for (let x = 0; x < 128; x += 2) {
+        ctx.fillStyle = (x + y) % 4 ? '#999999' : '#777777';
+        ctx.fillRect(x, y, 1, 2);
+      }
+      texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(8, 8);
+      texture.colorSpace = THREE.NoColorSpace;
+      configureTexture(texture); textureCache.set(key, texture);
+    }
+    return new THREE.MeshPhysicalMaterial({
+      color, roughness: 0.94, metalness: 0, bumpMap: texture, bumpScale: 0.0006,
+      sheen: 0.65, sheenColor: new THREE.Color(color), sheenRoughness: 0.9,
+      envMapIntensity: 0.45, side: THREE.DoubleSide,
     });
   }
 
@@ -1551,12 +1837,12 @@
 
   function buildSofa(g, f, col) {
     const w = (f.w || 180) / 100, d = (f.d || 85) / 100;
-    const profile = getStylePreset().furnitureProfile;
+    const profile = getFurnitureStylePreset().furnitureProfile;
     const sh = { low:0.32, tapered:0.38, floor:0.24, organic:0.34, frame:0.35, classic:0.46 }[profile];
     const bh = { low:0.34, tapered:0.42, floor:0.3, organic:0.38, frame:0.4, classic:0.5 }[profile];
     const legH = profile === 'floor' ? 0.025 : profile === 'classic' ? 0.05 : 0.11;
     const armW = profile === 'floor' ? 0 : Math.min(w * (profile === 'classic' ? 0.1 : 0.045), profile === 'classic' ? 0.16 : 0.075);
-    const base = mkRoundedBox(w, 0.12, d, 0.025, mat(profile === 'frame' ? getStylePreset().metal : getStylePreset().wood));
+    const base = mkRoundedBox(w, 0.12, d, 0.025, mat(profile === 'frame' ? getFurnitureStylePreset().metal : getFurnitureStylePreset().wood));
     base.position.y = legH + 0.06; base.castShadow = true; g.add(base);
     const cushionCount = w > 1.5 ? 3 : 2;
     for (let i = 0; i < cushionCount; i += 1) {
@@ -1579,7 +1865,7 @@
       }
     }
     if (legH > 0.03) for (const lx of [-w / 2 + 0.1, w / 2 - 0.1]) for (const lz of [-d / 2 + 0.09, d / 2 - 0.09]) {
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.012, profile === 'tapered' ? 0.022 : 0.012, legH, 8), mat(profile === 'frame' || profile === 'low' ? getStylePreset().metal : getStylePreset().wood));
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.012, profile === 'tapered' ? 0.022 : 0.012, legH, 8), mat(profile === 'frame' || profile === 'low' ? getFurnitureStylePreset().metal : getFurnitureStylePreset().wood));
       leg.position.set(lx, legH/2, lz); g.add(leg);
     }
     if (w > 1.35) for (const sx of [-1, 1]) {
@@ -1590,9 +1876,125 @@
     }
   }
 
+  function buildArmchair(g, f, col) {
+    const w = (f.w || 76) / 100;
+    const d = (f.d || 82) / 100;
+    const legH = 0.16;
+    const frameMat = mat(getFurnitureStylePreset().wood, { roughness: 0.62 });
+    const leather = mat(col || '#31363a', { roughness: 0.58, metalness: 0.02 });
+    const seat = mkRoundedBox(w * 0.72, 0.16, d * 0.62, 0.04, leather);
+    seat.position.set(0, legH + 0.2, d * 0.04);
+    g.add(seat);
+    const back = mkRoundedBox(w * 0.72, 0.48, 0.13, 0.045, leather);
+    back.position.set(0, legH + 0.49, -d * 0.31);
+    back.rotation.x = -0.11;
+    g.add(back);
+    for (const sx of [-1, 1]) {
+      const arm = mkRoundedBox(0.055, 0.055, d * 0.66, 0.014, frameMat);
+      arm.position.set(sx * w * 0.44, legH + 0.35, 0);
+      g.add(arm);
+      for (const z of [-d * 0.27, d * 0.27]) {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.024, legH + 0.31, 10), frameMat);
+        leg.position.set(sx * w * 0.44, (legH + 0.31) / 2, z);
+        leg.rotation.z = -sx * 0.05;
+        g.add(leg);
+      }
+    }
+  }
+
+  function buildRug(g, f, col) {
+    const w = (f.w || 240) / 100;
+    const d = (f.d || 170) / 100;
+    const h = 0.006;
+    const rug = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), makeRugMaterial(col || '#9c9184'));
+    rug.position.y = h / 2;
+    rug.castShadow = false;
+    rug.receiveShadow = true;
+    g.add(rug);
+  }
+
+  function makeRugMaterial(color) {
+    const key = 'rug:neutral-fibre';
+    let texture = textureCache.get(key);
+    if (!texture) {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 512, 512);
+      ctx.globalAlpha = 0.18;
+      for (let line = 0; line < 512; line += 4) {
+        ctx.strokeStyle = line % 12 === 0 ? '#f4f1ed' : '#8e8880';
+        ctx.beginPath(); ctx.moveTo(line, 0); ctx.lineTo(line, 512); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, line + 1); ctx.lineTo(512, line + 1); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(3.2, 2.2);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      configureTexture(texture);
+      textureCache.set(key, texture);
+    }
+    const bumpMap = texture.clone();
+    bumpMap.colorSpace = THREE.NoColorSpace;
+    bumpMap.userData.surfaceClone = true;
+    configureTexture(bumpMap);
+    return new THREE.MeshStandardMaterial({
+      map: texture,
+      bumpMap,
+      bumpScale: 0.018,
+      color: color || 0xd8cec1,
+      roughness: 1,
+      metalness: 0,
+      envMapIntensity: 0.28,
+    });
+  }
+
+  function buildArtwork(g, f) {
+    const w = (f.w || 100) / 100;
+    const h = (f.h || 70) / 100;
+    const d = Math.max(0.025, (f.d || 5) / 100);
+    const frame = mkRoundedBox(w, h, d, 0.012, mat('#352f2a', { roughness: 0.54, metalness: 0.02 }));
+    frame.position.y = h / 2;
+    g.add(frame);
+    const canvasMaterial = new THREE.MeshStandardMaterial({ map: makeArtworkTexture(), roughness: 0.88, metalness: 0, envMapIntensity: 0.18 });
+    for (const side of [-1, 1]) {
+      const canvas = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.055, h - 0.055), canvasMaterial);
+      canvas.position.set(0, h / 2, side * (d / 2 + 0.014));
+      canvas.rotation.y = side < 0 ? Math.PI : 0;
+      g.add(canvas);
+    }
+  }
+
+  function makeArtworkTexture() {
+    const key = 'artwork:modern-neutral';
+    if (textureCache.has(key)) return textureCache.get(key);
+    const canvas = document.createElement('canvas');
+    canvas.width = 768;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#eee8de';
+    ctx.fillRect(0, 0, 768, 512);
+    ctx.fillStyle = '#b46f4e';
+    ctx.beginPath(); ctx.arc(216, 318, 150, Math.PI * 1.08, Math.PI * 1.92); ctx.lineTo(216, 318); ctx.fill();
+    ctx.fillStyle = '#6f7c70';
+    ctx.beginPath(); ctx.ellipse(485, 210, 176, 92, -0.38, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#292d2c';
+    ctx.beginPath(); ctx.arc(548, 354, 66, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.52)';
+    ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(82, 420); ctx.bezierCurveTo(260, 238, 414, 454, 690, 90); ctx.stroke();
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    configureTexture(texture);
+    textureCache.set(key, texture);
+    return texture;
+  }
+
   function buildBed(g, f, col) {
     const w = (f.w || 160) / 100, d = (f.d || 200) / 100, frameH = 0.2;
-    const profile = getStylePreset().furnitureProfile;
+    const profile = getFurnitureStylePreset().furnitureProfile;
     const frame = mkRoundedBox(w, frameH, d, 0.025, mat(col || 0x8b6f47));
     frame.position.y = frameH / 2; frame.castShadow = true; g.add(frame);
     const mattress = mkRoundedBox(w - 0.04, 0.18, d - 0.04, 0.035, mat(0xfaf5ef, { roughness: 0.92 }));
@@ -1601,22 +2003,22 @@
     const head = new THREE.Mesh(new THREE.BoxGeometry(w, headH, profile === 'classic' ? 0.11 : 0.055), mat(col || 0x6b4f2a));
     head.position.set(0, headH/2 + frameH, -d / 2 + 0.03); g.add(head);
     if (profile === 'floor') for (const x of [-0.36,-0.18,0,0.18,0.36]) {
-      const slat = mkBox(0.025, headH * 0.8, 0.018, mat(getStylePreset().wood), x*w, frameH + headH/2, -d/2 - 0.006); g.add(slat);
+      const slat = mkBox(0.025, headH * 0.8, 0.018, mat(getFurnitureStylePreset().wood), x*w, frameH + headH/2, -d/2 - 0.006); g.add(slat);
     }
-    const duvet = mkRoundedBox(w - 0.08, 0.11, d * 0.62, 0.045, mat('#e9e2d8', { roughness: 0.96 }));
+    const duvet = mkRoundedBox(w - 0.08, 0.11, d * 0.62, 0.045, fabricMaterial('#e9e2d8'));
     duvet.position.set(0, frameH + 0.23, d * 0.13); g.add(duvet);
     for (const sx of [-1, 1]) {
-      const pillow = mkRoundedBox(w * 0.38, 0.09, 0.3, 0.04, mat(0xfaf8f3, { roughness: 0.98 }));
+      const pillow = mkRoundedBox(w * 0.38, 0.09, 0.3, 0.04, fabricMaterial('#faf8f3'));
       pillow.position.set(sx * w * 0.22, frameH + 0.25, -d / 2 + 0.23); pillow.rotation.y = sx * 0.04; g.add(pillow);
     }
   }
 
   function buildTable(g, f, col) {
     const w = (f.w || 120) / 100, d = (f.d || 80) / 100, h = (f.h || 75) / 100, topH = h * 0.06;
-    const profile = getStylePreset().furnitureProfile;
+    const profile = getFurnitureStylePreset().furnitureProfile;
     const top = mkRoundedBox(w, topH, d, Math.min(0.025, topH * 0.35), mat(col || 0xa0522d, { roughness: 0.56 }));
     top.position.y = h - topH / 2; top.castShadow = true; g.add(top);
-    const legMat = mat(profile === 'low' || profile === 'frame' ? getStylePreset().metal : getStylePreset().wood, { metalness: profile === 'frame' ? 0.55 : 0.05 });
+    const legMat = mat(profile === 'low' || profile === 'frame' ? getFurnitureStylePreset().metal : getFurnitureStylePreset().wood, { metalness: profile === 'frame' ? 0.55 : 0.05 });
     if (profile === 'frame') {
       for (const lx of [-w * 0.32, w * 0.32]) g.add(mkBox(0.035, h - topH, d * 0.72, legMat, lx, (h-topH)/2, 0));
     } else if (profile === 'organic') {
@@ -1633,20 +2035,20 @@
 
   function buildWardrobe(g, f, col) {
     const w = (f.w || 180) / 100, d = (f.d || 60) / 100, h = (f.h || 200) / 100;
-    const profile = getStylePreset().furnitureProfile;
+    const profile = getFurnitureStylePreset().furnitureProfile;
     const body = mkRoundedBox(w, h, d, 0.018, mat(col || 0x8b5a2b));
     body.position.y = h / 2; body.castShadow = true; g.add(body);
     const doorW = w / 2 - 0.02;
     for (const sx of [-1, 1]) {
       const door = mkRoundedBox(doorW, h - 0.07, 0.024, 0.008, mat(col ? new THREE.Color(col).multiplyScalar(0.85) : 0x6b3a1a));
       door.position.set(sx * w / 4, h / 2, d / 2 + 0.01); g.add(door);
-      const handle = mkBox(profile === 'classic' ? 0.035 : 0.018, profile === 'classic' ? 0.09 : h * 0.34, 0.018, mat(getStylePreset().metal, { metalness: 0.65, roughness: 0.3 }), sx * 0.045, h * 0.52, d / 2 + 0.032);
+      const handle = mkBox(profile === 'classic' ? 0.035 : 0.018, profile === 'classic' ? 0.09 : h * 0.34, 0.018, mat(getFurnitureStylePreset().metal, { metalness: 0.65, roughness: 0.3 }), sx * 0.045, h * 0.52, d / 2 + 0.032);
       g.add(handle);
       if (profile === 'classic') {
-        for (const y of [h*0.28,h*0.68]) g.add(mkBox(doorW*0.72, 0.018, 0.012, mat(getStylePreset().wood), sx*w/4, y, d/2+0.035));
+        for (const y of [h*0.28,h*0.68]) g.add(mkBox(doorW*0.72, 0.018, 0.012, mat(getFurnitureStylePreset().wood), sx*w/4, y, d/2+0.035));
       }
     }
-    if (profile === 'floor') for (let x = -w*0.42; x <= w*0.42; x += w*0.12) g.add(mkBox(0.018, h*0.88, 0.012, mat(getStylePreset().wood), x, h/2, d/2+0.04));
+    if (profile === 'floor') for (let x = -w*0.42; x <= w*0.42; x += w*0.12) g.add(mkBox(0.018, h*0.88, 0.012, mat(getFurnitureStylePreset().wood), x, h/2, d/2+0.04));
   }
 
   function buildToilet(g, f, col) {
@@ -1686,18 +2088,31 @@
   }
 
   function buildPlant(g, f, col) {
-    const w = (f.w || 30) / 100, h = (f.h || 100) / 100, potH = h * 0.25;
-    const pot = new THREE.Mesh(new THREE.CylinderGeometry(w * 0.35, w * 0.28, potH, 16), mat(getStylePreset().accent, { roughness: 0.9 }));
-    pot.position.y = potH / 2; g.add(pot);
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.018, h * 0.55, 8), mat(0x556b3f, { roughness: 0.96 }));
-    stem.position.y = potH + h * 0.27; g.add(stem);
-    const leafMat = mat(0x3f6d4a, { roughness: 0.95, side: THREE.DoubleSide });
-    for (let i = 0; i < 11; i += 1) {
-      const angle = i * 2.399;
-      const leaf = new THREE.Mesh(new THREE.SphereGeometry(w * 0.18, 12, 8), leafMat);
-      leaf.scale.set(0.55, 2.2 + (i % 3) * 0.25, 0.34);
-      leaf.position.set(Math.cos(angle) * w * 0.28, potH + h * (0.42 + (i % 4) * 0.09), Math.sin(angle) * w * 0.28);
-      leaf.rotation.z = Math.cos(angle) * 0.65; leaf.rotation.x = Math.sin(angle) * 0.65; g.add(leaf);
+    const w = (f.w || 30) / 100, h = (f.h || 100) / 100, potH = h * 0.27;
+    const profile = [[0,0], [w*.25,0], [w*.31,potH*.08], [w*.36,potH*.9], [w*.35,potH], [w*.31,potH], [w*.30,potH*.88]];
+    const pot = new THREE.Mesh(new THREE.LatheGeometry(profile.map(([x,y]) => new THREE.Vector2(x,y)), 40), mat(col || '#c2b5a0', { roughness: 0.8, metalness: 0, side: THREE.DoubleSide }));
+    pot.castShadow = true; pot.receiveShadow = true; g.add(pot);
+    const soil = new THREE.Mesh(new THREE.CircleGeometry(w*.3, 32), mat('#352e24', { roughness: 1 }));
+    soil.rotation.x = -Math.PI/2; soil.position.y = potH*.89; g.add(soil);
+    const stemMat = mat('#606543', { roughness: .87 });
+    const leafMaterials = ['#34543a','#446d43','#597c48'].map(color => new THREE.MeshPhysicalMaterial({ color, roughness:.65, metalness:0, side:THREE.DoubleSide, sheen:.25, sheenColor:new THREE.Color('#85a263') }));
+    for (let i = 0; i < 18; i += 1) {
+      const angle = i * 2.399, height = potH + h * (.14 + i / 18 * .48);
+      const reach = w * (.20 + (i % 3) * .07);
+      const tip = new THREE.Vector3(Math.cos(angle)*reach, height, Math.sin(angle)*reach);
+      const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0,potH*.86,0),new THREE.Vector3(tip.x*.35,height*.75,tip.z*.35),tip]);
+      const branch = new THREE.Mesh(new THREE.TubeGeometry(curve, 8, .0025, 5, false), stemMat); g.add(branch);
+      const length = h * (.17 + i%3*.015), width = w * .28;
+      const geometry = new THREE.PlaneGeometry(1,1,6,14);
+      const vertices = geometry.attributes.position;
+      for (let v=0; v<vertices.count; v++) {
+        const t=vertices.getY(v)+.5, across=vertices.getX(v)*2;
+        vertices.setXYZ(v, across*width*.5*Math.pow(Math.sin(Math.PI*t),.72), t*length, Math.sin(t*Math.PI)*length*.15 + Math.abs(across)*width*.14);
+      }
+      geometry.computeVertexNormals();
+      const leaf = new THREE.Mesh(geometry, leafMaterials[i%3]);
+      leaf.position.copy(tip); leaf.rotation.set(.45 + i%4*.14, angle, .12*Math.sin(i));
+      leaf.castShadow=true; leaf.receiveShadow=true; leaf.userData.type='botanical-leaf'; g.add(leaf);
     }
   }
 
@@ -1707,13 +2122,13 @@
     body.position.y = (h - 0.05) / 2 + 0.05; body.castShadow = true; g.add(body);
     const plinth = mkRoundedBox(w * 0.88, 0.05, d * 0.82, 0.01, mat(0x383633, { roughness: 0.7 })); plinth.position.y = 0.025; g.add(plinth);
     const door = mkRoundedBox(w - 0.035, h * 0.72, 0.022, 0.008, mat(col || 0xc9b896)); door.position.set(0, h * 0.52, d / 2 + 0.012); g.add(door);
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(w * 0.34, 0.012, 0.015), mat(getStylePreset().metal, { metalness: 0.65, roughness: 0.3 }));
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(w * 0.34, 0.012, 0.015), mat(getFurnitureStylePreset().metal, { metalness: 0.65, roughness: 0.3 }));
     handle.position.set(0, h * 0.6, d / 2 + 0.01); g.add(handle);
   }
 
   function buildFridge(g, f, col) {
     const w = (f.w || 70) / 100, d = (f.d || 70) / 100, h = (f.h || 180) / 100;
-    const body = mkRoundedBox(w, h, d, 0.025, mat(col || getStylePreset().metal, { metalness: 0.32, roughness: 0.32 }));
+    const body = mkRoundedBox(w, h, d, 0.025, mat(col || getFurnitureStylePreset().metal, { metalness: 0.32, roughness: 0.32 }));
     body.position.y = h / 2; body.castShadow = true; g.add(body);
     const seam = new THREE.Mesh(new THREE.BoxGeometry(w + 0.005, 0.005, d + 0.005), mat(0x999999));
     seam.position.y = h * 0.6; g.add(seam);
@@ -1725,7 +2140,7 @@
 
   function buildTV(g, f, col) {
     const w = (f.w || 120) / 100, h = (f.h || 70) / 100, d = (f.d || 8) / 100;
-    const screen = mkRoundedBox(w, h, d, 0.018, mat(col || getStylePreset().metal, { metalness: 0.28, roughness: 0.24 }));
+    const screen = mkRoundedBox(w, h, d, 0.018, mat(col || getFurnitureStylePreset().metal, { metalness: 0.28, roughness: 0.24 }));
     screen.position.set(0, h / 2 + 0.48, 0); g.add(screen);
     const bezel = mkRoundedBox(w - 0.024, h - 0.024, d + 0.012, 0.012, new THREE.MeshPhysicalMaterial({ color: 0x101318, roughness: 0.08, metalness: 0.05, clearcoat: 1, clearcoatRoughness: 0.12 }));
     bezel.position.copy(screen.position); g.add(bezel);
@@ -1736,20 +2151,30 @@
   }
 
   function buildLamp(g, f, col) {
-    const h = (f.h || 150) / 100, r = (f.w || 25) / 100;
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.5, r * 0.6, 0.03, 12), mat(0x333333));
-    base.position.y = 0.015; g.add(base);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, h - 0.2, 8), mat(0x555555, { metalness: 0.4 }));
-    pole.position.y = (h - 0.2) / 2 + 0.03; g.add(pole);
-    const shade = new THREE.Mesh(new THREE.ConeGeometry(r, 0.18, 16, 1, true), mat(col || 0xfff8e0, { side: THREE.DoubleSide, emissive: col || 0xfff8e0, emissiveIntensity: 0.4 }));
-    shade.position.y = h - 0.12; g.add(shade);
+    const h = (f.h || 150) / 100, r = (f.w || 25) / 200;
+    const metal = mat('#696052', { metalness: .8, roughness: .3 });
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(r*.85, r, .035, 48), metal);
+    base.position.y=.018; base.castShadow=true; g.add(base);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.009,.011,h-.15,20),metal);
+    pole.position.y=(h-.15)/2+.035; g.add(pole);
+    const shadeHeight = Math.min(.28,h*.2);
+    const shadeMaterial = fabricMaterial(col || '#eee3d1');
+    shadeMaterial.emissive.set('#ffdbab'); shadeMaterial.emissiveIntensity=.12;
+    const shade = new THREE.Mesh(new THREE.CylinderGeometry(r*.80,r,shadeHeight,48,1,true),shadeMaterial);
+    shade.position.y=h-shadeHeight/2; shade.castShadow=false; shade.receiveShadow=true; shade.userData.type='linen-lampshade'; g.add(shade);
+    for (const [y,radius] of [[h,r*.80],[h-shadeHeight,r]]) {
+      const rim=new THREE.Mesh(new THREE.TorusGeometry(radius,.003,6,48),metal);
+      rim.rotation.x=Math.PI/2; rim.position.y=y; g.add(rim);
+    }
+    const bulb=new THREE.Mesh(new THREE.SphereGeometry(.024,16,12),mat('#fff1d6',{emissive:'#ffd7a0',emissiveIntensity:.6}));
+    bulb.position.y=h-shadeHeight*.7; g.add(bulb);
     const bulbPoint = new THREE.PointLight(0xfff0d0, ProjectModel.computePracticalLightIntensity('lamp', 1, State.renderMode), 4, 2);
     bulbPoint.position.y = h - 0.2; g.add(bulbPoint);
   }
 
   function buildStove(g, f, col) {
     const w = (f.w || 60) / 100, d = (f.d || 60) / 100, h = (f.h || 85) / 100;
-    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(col || getStylePreset().metal, { metalness: 0.3, roughness: 0.5 }));
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(col || getFurnitureStylePreset().metal, { metalness: 0.3, roughness: 0.5 }));
     body.position.y = h / 2; body.castShadow = true; g.add(body);
     for (const px of [-0.12, 0.12]) for (const pz of [-0.12, 0.12]) {
       const burner = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.01, 16), mat(0x111111));
@@ -1769,7 +2194,7 @@
 
   function buildWasher(g, f, col) {
     const w = (f.w || 60) / 100, d = (f.d || 60) / 100, h = (f.h || 85) / 100;
-    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(col || getStylePreset().metal, { metalness: 0.2 }));
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(col || getFurnitureStylePreset().metal, { metalness: 0.2 }));
     body.position.y = h / 2; body.castShadow = true; g.add(body);
     const door = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.02, 24, 1, false, -Math.PI * 0.4, Math.PI * 0.8), mat(0x4488cc, { metalness: 0.3, transparent: true, opacity: 0.6 }));
     door.rotation.x = Math.PI / 2; door.position.set(0, h * 0.6, d / 2 + 0.01); g.add(door);
@@ -1806,6 +2231,11 @@ function getObjPos(obj) {
   }
   function setCameraPreset(id) {
     State.cameraPreset = ProjectModel.CAMERA_PRESETS[id] ? id : ProjectModel.DEFAULT_CAMERA_PRESET;
+    if (State.cameraPreset === 'interior') {
+      buildingViewMode = 'active';
+      State.renderMode = 'photo';
+    }
+    buildFromState();
     controls?.applyCameraPreset?.(State.cameraPreset);
     return State.cameraPreset;
   }
@@ -1849,6 +2279,12 @@ function getObjPos(obj) {
     getSunIntensity: () => sunIntensity,
     setRenderMode,
     getRenderMode: () => State.renderMode,
+    getRenderDiagnostics: () => ({
+      photoEnvironment: Boolean(photoEnvironmentTexture),
+      catalogModels: furnGroup ? furnGroup.children.filter(group => group.children?.some(child => child.userData?.type === 'catalog-model')).length : 0,
+      siteVisible: Boolean(siteGroup?.visible),
+      invalidStairs: ProjectModel.findInvalidStairIds(State.walls, State.stairs).length,
+    }),
     setLightingPreset,
     getLightingPreset: () => State.lightingPreset,
     setCameraPreset,
@@ -1857,7 +2293,7 @@ function getObjPos(obj) {
     restoreSavedCamera,
     enterWalkMode, exitWalkMode,
     isWalkMode: () => walkMode,
-    isCutaway: () => cutawayMode,
+    isCutaway: () => cutawayMode && State.cameraPreset !== 'interior',
     getBuildingViewMode: () => buildingViewMode,
     setBuildingViewMode,
     focusActiveLevel,

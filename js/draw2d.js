@@ -12,6 +12,24 @@
     canvas.style.height = rect.height + 'px';
     draw();
   }
+
+  function fitHome() {
+    const walls = activeLevelItems(State.walls);
+    if (!walls.length) return false;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    if (rect.width < 100 || rect.height < 100) return false;
+    const xs = walls.flatMap(wall => [Number(wall.x1) || 0, Number(wall.x2) || 0]);
+    const ys = walls.flatMap(wall => [Number(wall.y1) || 0, Number(wall.y2) || 0]);
+    const minX = Math.min(...xs); const maxX = Math.max(...xs);
+    const minY = Math.min(...ys); const maxY = Math.max(...ys);
+    const width = Math.max(1, maxX - minX);
+    const height = Math.max(1, maxY - minY);
+    State.zoom = Math.max(0.1, Math.min(1.5, Math.min((rect.width - 120) / width, (rect.height - 120) / height)));
+    State.panX = -(minX + maxX) / 2;
+    State.panY = -(minY + maxY) / 2;
+    draw();
+    return true;
+  }
   window.addEventListener('resize', resize);
 
   function toScreen(x, y) {
@@ -38,6 +56,29 @@
     })) return true;
     const activeType = State.activeType === 'wall-endpoint' ? 'wall' : State.activeType;
     return State.activeObject === id && activeType === normalized;
+  }
+
+  function drawRoomLabel(room) {
+    if (!room.templateId) return;
+    const label = t('roomTemplate.' + room.templateId);
+    if (!label || label === 'roomTemplate.' + room.templateId) return;
+    const center = toScreen(room.x - Number(room.w || 0) / 2 + 70, room.y - Number(room.d || 0) / 2 + 32);
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.font = '600 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const width = ctx.measureText(label).width + 18;
+    ctx.fillStyle = 'rgba(255,255,255,.82)';
+    ctx.strokeStyle = 'rgba(0,113,227,.28)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(center.x - width / 2, center.y - 13, width, 26, 13);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#24445f';
+    ctx.fillText(label, center.x, center.y + 0.5);
+    ctx.restore();
   }
 
   function drawGrid() {
@@ -173,18 +214,30 @@
   }
 
   function drawWindow(win) {
+    const wall = State.walls.find(item => item.id === win.wallId);
+    if (!wall) return;
     const p = toScreen(win.x, win.y);
     const selected = isSelectedObject('window', win.id);
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.translate(p.x, p.y);
-    ctx.rotate(win.angle || 0);
-    ctx.fillStyle = '#5ac8fa';
-    ctx.strokeStyle = selected ? '#0071e3' : '#007aff';
-    ctx.lineWidth = selected ? 3 : 2;
-    const w = win.width * State.zoom / 2;
-    ctx.fillRect(-w, -3, w * 2, 6);
-    ctx.strokeRect(-w, -3, w * 2, 6);
+    ctx.rotate(Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1));
+    const halfWidth = win.width * State.zoom / 2;
+    const thickness = Math.max(8, (wall.thickness || 20) * State.zoom);
+    ctx.fillStyle = '#fbfcfd';
+    ctx.fillRect(-halfWidth, -thickness / 2 - 1, halfWidth * 2, thickness + 2);
+    ctx.strokeStyle = selected ? '#0071e3' : '#607d8b';
+    ctx.lineWidth = selected ? 2.5 : 1.5;
+    for (const y of [-thickness * 0.18, thickness * 0.18]) {
+      ctx.beginPath(); ctx.moveTo(-halfWidth, y); ctx.lineTo(halfWidth, y); ctx.stroke();
+    }
+    for (const x of [-halfWidth, halfWidth]) {
+      ctx.beginPath(); ctx.moveTo(x, -thickness / 2); ctx.lineTo(x, thickness / 2); ctx.stroke();
+    }
+    if (selected) {
+      ctx.strokeStyle = 'rgba(0,113,227,.55)';
+      ctx.strokeRect(-halfWidth, -thickness / 2, halfWidth * 2, thickness);
+    }
     ctx.restore();
   }
 
@@ -535,6 +588,7 @@
     activeLevelItems(State.furnitures).forEach(drawFurniture);
     activeLevelItems(State.stairs).forEach(drawStair);
     activeLevelItems(State.dimensions).forEach(drawDimension);
+    activeLevelItems(State.rooms).forEach(drawRoomLabel);
     drawSnapFeedback();
     drawDimensionPreview();
     drawLiveWallPreview();
@@ -554,7 +608,7 @@
     requestAnimationFrame(loop);
   }
 
-  window._draw2d = { draw, resize, toWorld, toScreen, startLoop };
+  window._draw2d = { draw, resize, fitHome, toWorld, toScreen, startLoop };
   requestRedraw = draw;
   setTimeout(() => {
     resize();

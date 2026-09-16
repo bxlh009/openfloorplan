@@ -1,10 +1,11 @@
 {
   "name": "openfloorplan",
-  "version": "0.5.8",
+  "version": "0.6.0",
   "private": true,
   "scripts": {
+    "verify": "npm run check && npm test",
     "test": "node --test tests/*.test.js",
-    "check": "node --check js/project.js && node --check js/state.js && node --check js/draw2d.js && node --check js/view3d.js && node --check js/tools.js && node --check js/ui.js && node --check js/app.js && node --check js/i18n.js && node --check js/vendor/loaders/GLTFLoader.js && node --check js/vendor/utils/BufferGeometryUtils.js",
+    "check": "node --check js/project.js && node --check js/state.js && node --check js/draw2d.js && node --check js/view3d.js && node --check js/tools.js && node --check js/ui.js && node --check js/app.js && node --check js/i18n.js && node --check js/vendor/loaders/GLTFLoader.js && node --check js/vendor/loaders/RGBELoader.js && node --check js/vendor/utils/BufferGeometryUtils.js && node --check scripts/fetch-polyhaven-model.mjs && node --check scripts/fetch-polyhaven-hdri.mjs && node --check scripts/fetch-khronos-asset.mjs && node --check scripts/fetch-three-addon.mjs",
     "test:visual": "node tests/visual-smoke.mjs"
   }
 }
